@@ -10,6 +10,7 @@
 
 [![Website](https://img.shields.io/badge/bernarduriza.com-FF5722?style=for-the-badge&logo=google-chrome&logoColor=white)](https://bernarduriza.com)
 [![Email](https://img.shields.io/badge/bernarduriza@gmail.com-D14836?style=for-the-badge&logo=gmail&logoColor=white)](mailto:bernarduriza@gmail.com)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-0077B5?style=for-the-badge&logo=linkedin&logoColor=white)](https://www.linkedin.com/in/bernarduriza/)
 
 </div>
 
@@ -196,6 +197,7 @@ Sophisticated real-time communication platform leveraging advanced WebRTC protoc
 
 💼 **Professional Email**: [bernarduriza@gmail.com](mailto:bernarduriza@gmail.com)
 🌐 **Website**: [bernarduriza.com](https://bernarduriza.com)
+💼 **LinkedIn**: [linkedin.com/in/bernarduriza](https://www.linkedin.com/in/bernarduriza/)
 💻 **GitHub**: [@BernardUriza](https://github.com/BernardUriza)
 📍 **Location**: Guadalajara, Jalisco, Mexico
 
