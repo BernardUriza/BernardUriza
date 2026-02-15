@@ -19,7 +19,7 @@
 ## 🎯 About Me
 
 Senior Fullstack Developer with **11+ years of experience** building robust, scalable systems across healthcare, finance, real estate, and supply chain domains. Specialized in **AI/LLM integration**, modern full-stack development, and comprehensive test automation.
-
+https://black-ground-0e59ed31e.6.azurestaticapps.net/chat/
 **Core Philosophy:** *"Serenity as Strategy"* — transforming uncertainty into structured action through calm, traceable processes where AI suggests but humans decide. Autonomous, resilient, and visionary with a proven track record of delivering consistent value under real-world constraints.
 
 Currently leading test automation initiatives at **Paylocity**, designing comprehensive solutions across functional, API, performance, and security testing. Previously built AI-powered real estate solutions at **JLL** integrating ChatGPT APIs with enterprise systems.
