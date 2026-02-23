@@ -16,10 +16,15 @@
 
 ---
 
+> 🤖 **Working with AI daily?** Check out my copy/paste prompt collection for developers:
+> **[dev-chatgpt-prompts](https://github.com/BernardUriza/dev-chatgpt-prompts)** — 10 stack-agnostic prompts ready to paste. No fill-in-the-blanks, no setup.
+
+---
+
 ## 🎯 About Me
 
 Senior Fullstack Developer with **11+ years of experience** building robust, scalable systems across healthcare, finance, real estate, and supply chain domains. Specialized in **AI/LLM integration**, modern full-stack development, and comprehensive test automation.
-https://black-ground-0e59ed31e.6.azurestaticapps.net/chat/
+
 **Core Philosophy:** *"Serenity as Strategy"* — transforming uncertainty into structured action through calm, traceable processes where AI suggests but humans decide. Autonomous, resilient, and visionary with a proven track record of delivering consistent value under real-world constraints.
 
 Currently leading test automation initiatives at **Paylocity**, designing comprehensive solutions across functional, API, performance, and security testing. Previously built AI-powered real estate solutions at **JLL** integrating ChatGPT APIs with enterprise systems.
@@ -98,6 +103,15 @@ Currently leading test automation initiatives at **Paylocity**, designing compre
 ---
 
 ## 🚀 Featured Projects
+
+### [dev-chatgpt-prompts](https://github.com/BernardUriza/dev-chatgpt-prompts) 📋
+**10 Copy/Paste AI Prompts for Developers — No Fill-in-the-Blanks**
+
+A tight, opinionated collection of prompts I use daily across all my projects. Stack-agnostic, ready to paste into any AI assistant. Covers refactoring, debugging, security audits, AI output quality, and more.
+
+**Why it exists:** Most prompt repos have you fill in brackets or pick a framework. These just work — paste, describe your problem, get results.
+
+---
 
 ### [SerenityOps](https://github.com/BernardUriza/SerenityOps) 🎯
 **Personal Intelligence System for Structured Career & Financial Management**
