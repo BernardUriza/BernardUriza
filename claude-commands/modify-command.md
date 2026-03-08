@@ -24,21 +24,31 @@ Este comando lanza un **wizard interactivo** que guia al usuario paso a paso par
 
 ## PASO 0: Descubrimiento — Inventario de Comandos Existentes
 
-Antes de la primera pregunta, Claude DEBE:
+Antes de la primera pregunta, Claude DEBE escanear AMBAS fuentes de comandos:
 
-1. Listar todos los archivos en `.claude/commands/`:
+1. **Comandos GLOBALES** (compartidos entre todos los repos):
    ```bash
-   ls -la .claude/commands/*.md
+   ls -la ~/.claude/commands/*.md 2>/dev/null
    ```
 
-2. Leer el contenido de cada comando para tener contexto completo de lo que ya existe.
+2. **Comandos LOCALES** (específicos de este proyecto):
+   ```bash
+   ls -la .claude/commands/*.md 2>/dev/null
+   ```
 
-3. Construir un inventario mental:
+3. Leer el contenido de cada comando para tener contexto completo de lo que ya existe.
+
+4. Construir un inventario mental con la fuente de cada uno:
    - Nombre del comando
+   - **Fuente**: 🌐 Global (`~/.claude/commands/`) o 📁 Local (`.claude/commands/`)
    - Proposito (primera linea del archivo)
    - Cantidad de lineas (LOC)
    - Si tiene `ARGUMENTS` o no
    - Tono/personalidad (formal, agresivo, tecnico, etc.)
+
+**IMPORTANTE**: Los comandos locales tienen prioridad sobre los globales si hay colision de nombres.
+
+Los comandos globales viven en el repo `BernardUriza/BernardUriza` (profile repo) y se sincronizan via symlink. Si el usuario quiere crear/modificar un comando universal, escribir en `~/.claude/commands/`. Si es específico del proyecto actual, escribir en `.claude/commands/`.
 
 Este inventario se usa en las preguntas posteriores para ofrecer opciones informadas.
 
@@ -63,10 +73,28 @@ AskUserQuestion:
 
 ### Comportamiento segun respuesta:
 
-**Crear nuevo comando** -> Ir a PASO 2A (Nombre)
+**Crear nuevo comando** -> Ir a PASO 1B (Scope) -> PASO 2A (Nombre)
 **Modificar existente** -> Ir a PASO 2B (Seleccion)
 **Duplicar y adaptar** -> Ir a PASO 2C (Seleccion + Nombre nuevo)
 **Eliminar comando** -> Ir a PASO 2D (Confirmacion)
+
+---
+
+## PASO 1B: Scope — Global o Local
+
+```
+AskUserQuestion:
+  question: "Donde debe vivir este comando?"
+  header: "Scope"
+  options:
+    - label: "🌐 Global (todos los repos)"
+      description: "Se guarda en ~/.claude/commands/ (synced via BernardUriza/BernardUriza repo). Disponible en TODOS los proyectos."
+    - label: "📁 Local (solo este proyecto)"
+      description: "Se guarda en .claude/commands/ de este repo. Solo disponible aqui."
+```
+
+**Global**: Escribir en `~/.claude/commands/[nombre].md`. Despues recordar al usuario hacer commit+push en el profile repo.
+**Local**: Escribir en `.claude/commands/[nombre].md` como antes.
 
 ---
 
@@ -399,6 +427,14 @@ head -3 .claude/commands/[nombre].md
 ```
 
 Reportar: "Comando `/nombre` guardado — N lineas. Invocalo con `/nombre` en cualquier sesion."
+
+### 5. Si es comando GLOBAL: Commit en profile repo
+
+```bash
+cd ~/Documents/BernardUriza && git add -A && git commit -m "feat: add /nombre command" && git push
+```
+
+Reportar: "Comando synced al profile repo. En otras maquinas, `cd ~/Documents/BernardUriza && git pull` para actualizar."
 
 ---
 
