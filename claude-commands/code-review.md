@@ -1,11 +1,11 @@
 ﻿---
-description: Ejecuta code review con estandares Paylocity
+description: Ejecuta code review con estandares enterprise senior
 argument-hint: [archivo o ruta]
 allowed-tools: Read(*), Bash(*), Edit(*), mcp__atlassian__*, mcp__github__*
 ---
 
 ---
-description: Execute code review with Paylocity standards - no mercy, no shortcuts
+description: Execute code review with senior enterprise standards - no mercy, no shortcuts
 name: code-review
 argument-hint: "[file or path to review]"
 agent: agent

@@ -4,13 +4,11 @@
 
 ### Senior Fullstack Developer | AI Integration Specialist | Test Automation Engineer
 
-🌎 **Guadalajara, Jalisco, Mexico**
-🚀 **Senior Test Engineer @ Paylocity** | Building intelligent testing solutions
+🌎 **Remote · US time zones**
 💡 **11+ Years** transforming complexity into clarity through code
 
 [![Website](https://img.shields.io/badge/bernarduriza.com-FF5722?style=for-the-badge&logo=google-chrome&logoColor=white)](https://bernarduriza.com)
 [![Email](https://img.shields.io/badge/bernarduriza@gmail.com-D14836?style=for-the-badge&logo=gmail&logoColor=white)](mailto:bernarduriza@gmail.com)
-[![LinkedIn](https://img.shields.io/badge/LinkedIn-0077B5?style=for-the-badge&logo=linkedin&logoColor=white)](https://www.linkedin.com/in/bernarduriza/)
 
 </div>
 
@@ -27,7 +25,7 @@ Senior Fullstack Developer with **11+ years of experience** building robust, sca
 
 **Core Philosophy:** *"Serenity as Strategy"* — transforming uncertainty into structured action through calm, traceable processes where AI suggests but humans decide. Autonomous, resilient, and visionary with a proven track record of delivering consistent value under real-world constraints.
 
-Currently leading test automation initiatives at **Paylocity**, designing comprehensive solutions across functional, API, performance, and security testing. Previously built AI-powered real estate solutions at **JLL** integrating ChatGPT APIs with enterprise systems.
+Recent work spans applied AI/LLM systems in production (RAG pipelines, agent orchestration), full-stack platforms, and large-scale test automation across healthcare, fintech, real estate, and supply-chain domains.
 
 🤖 **AI/ML Expertise**: Trained custom GPT models from scratch with PyTorch on NVIDIA Ada GPUs, integrated Claude API and ChatGPT into production systems, built intelligent agents for decision support.
 
@@ -113,38 +111,7 @@ A tight, opinionated collection of prompts I use daily across all my projects. S
 
 ---
 
-### [SerenityOps](https://github.com/BernardUriza/SerenityOps) 🎯
-**Personal Intelligence System for Structured Career & Financial Management**
-
-A full-stack application combining Python backend (FastAPI), React frontend (TypeScript + Vite), and YAML-based data persistence. The system assists with CV generation, opportunity tracking, financial projections, and AI-assisted career management through Claude API.
-
-**Philosophy:** *"Serenity as Strategy"* - transforming uncertainty into structured action through calm, traceable processes where AI suggests but humans decide.
-
-**Stack:** `React 19` · `TypeScript` · `FastAPI` · `Python 3.11+` · `Claude API` · `Redis` · `Tailwind CSS v4` · `Zustand`
-
-**Key Features:**
-- ✅ AI-powered CV generation with Claude API
-- ✅ Job pipeline management (discovered → applied → interviewing → offer)
-- ✅ Financial projections and goal tracking
-- ✅ Career chat with AI-assisted decision-making
-
----
-
-### [VHouse](https://github.com/BernardUriza/VHouse) 🏘️
-**Vegan Distribution Platform - Code for the Animals**
-
-Enterprise-grade distribution management system for ethical vegan businesses. Built with Clean Architecture, CQRS patterns, and multi-tenancy support. Features advanced inventory management, real-time order processing, and AI-powered content generation.
-
-**Stack:** `.NET 10` · `Blazor Server` · `PostgreSQL 15` · `Entity Framework Core` · `Redis` · `Docker` · `Kubernetes`
-
-**Impact:**
-- ✅ Serves real businesses (Mona la Dona, Sano Market, La Papelería)
-- ✅ 30% reduction in manual tasks for distributors
-- ✅ Production-ready with >99.5% uptime target
-
----
-
-### [RoboPoet](https://github.com/BernardUriza/RoboPoet) 🤖
+### [Robo-Poet](https://github.com/BernardUriza/Robo-Poet) 🤖
 **Custom GPT Model Training from Scratch with PyTorch on NVIDIA Ada GPUs**
 
 Hands-on deep learning project implementing and training a minimal GPT architecture (nanoGPT) using PyTorch. Demonstrates end-to-end machine learning workflow from model implementation to GPU-accelerated training, showcasing practical knowledge of transformer architectures, gradient optimization, and CUDA programming.
@@ -158,7 +125,7 @@ Hands-on deep learning project implementing and training a minimal GPT architect
 
 ---
 
-### [Susurro](https://github.com/BernardUriza/Susurro) 🎙️
+### [Susurro](https://github.com/BernardUriza/susurro) 🎙️
 **Real-time Voice Platform with End-to-End Encryption**
 
 Sophisticated real-time communication platform leveraging advanced WebRTC protocols for secure, low-latency audio streaming. Implements complex signal processing algorithms for noise reduction while maintaining end-to-end encryption.
@@ -179,24 +146,24 @@ Sophisticated real-time communication platform leveraging advanced WebRTC protoc
 - 🧪 **Test Automation Expert**: Comprehensive automation across Jest, Cypress, Playwright, Selenium
 - 🏗️ **Enterprise Architect**: Multi-tenancy, CQRS, Clean Architecture, microservices
 - 🌐 **Real-time Systems**: WebRTC platforms, distributed messaging, event-driven architecture
-- 💰 **Cross-Industry Expertise**: Healthcare, Finance, Real Estate, Supply Chain, Automotive, HR/Payroll
+- 💰 **Cross-Industry Expertise**: Healthcare, Finance, Real Estate, Supply Chain, Automotive
 - 🔧 **Early .NET Adopter**: .NET experience since 2014, led legacy system migrations
 - 🎓 **Continuous Learner**: Bachelor's in Computer Systems Engineering (UTEL 2024)
 
 **Key Achievements:**
-- Integrated AI systems at JLL using ChatGPT APIs with enterprise real estate platforms
-- Built scalable supply chain planning tools at PlanetTogether with React/.NET
+- Integrated AI/ChatGPT systems into enterprise real-estate platforms
+- Built scalable supply-chain planning tools with React/.NET
 - Trained custom GPT models from scratch with PyTorch on NVIDIA Ada GPUs
-- Designed comprehensive test automation strategies at Paylocity
+- Designed comprehensive test-automation strategies for enterprise SaaS platforms
 - Developed production vegan distribution platform serving real businesses
 
 ---
 
 ## 🔭 Currently
 
-- 🧪 **Leading Test Automation** at Paylocity - Designing comprehensive testing solutions across functional, API, performance, and security domains
-- 🤖 **Exploring Advanced AI**: Deep learning, model training, LLM agent orchestration
-- 🏗️ **Building Personal Infrastructure**: SerenityOps for career intelligence, automated decision support systems
+- 🤖 **Building applied AI / LLM systems** — agent orchestration, RAG pipelines, and developer tooling
+- 🧪 **Test Automation at scale** — functional, API, performance, and security testing across enterprise platforms
+- 🏗️ **Building Personal Infrastructure**: automation and developer tooling for decision support
 - 📚 **Learning**: Advanced Kubernetes patterns, observability systems, healthcare-grade security
 
 **Open to:**
@@ -211,9 +178,8 @@ Sophisticated real-time communication platform leveraging advanced WebRTC protoc
 
 💼 **Professional Email**: [bernarduriza@gmail.com](mailto:bernarduriza@gmail.com)
 🌐 **Website**: [bernarduriza.com](https://bernarduriza.com)
-💼 **LinkedIn**: [linkedin.com/in/bernarduriza](https://www.linkedin.com/in/bernarduriza/)
 💻 **GitHub**: [@BernardUriza](https://github.com/BernardUriza)
-📍 **Location**: Guadalajara, Jalisco, Mexico
+📍 **Location**: Remote · US time zones
 
 ---
 
