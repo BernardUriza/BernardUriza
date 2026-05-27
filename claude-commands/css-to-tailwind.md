@@ -117,7 +117,7 @@ These require changes in CSS + markup + possibly the component:
 
 ### Do NOT Convert
 
-- Properties with `var()`, `calc()`, `color-mix()`, `clamp()` — depend on design system
+- Properties with `var()`, `calc()`, `color-mix()`, `clamp()` — depend on design system *(see VHouse-Specific Extensions below for the var()→@theme exception)*
 - Properties inside `@keyframes` — but propose replacement with `animate-*` if one exists
 - Ambiguous shorthand with multiple values (e.g., `margin: 10px 20px 30px`)
 - Lines that already have `@apply`
@@ -220,7 +220,7 @@ At the end of each round, report magic values found:
 ## Rules
 
 1. **NEVER** convert properties inside `@keyframes` — but propose replacement with `animate-*` if equivalent exists
-2. **NEVER** convert properties using `var()`, `calc()`, `color-mix()`, `clamp()`
+2. **NEVER** convert properties using `var()`, `calc()`, `color-mix()`, `clamp()` *(VHouse override: see VHouse-Specific Extensions)*
 3. **NEVER** touch lines that already have `@apply`
 4. **NEVER** convert ambiguous shorthand (e.g., `margin: 10px 20px 30px`)
 5. If a CSS rule already has an existing `@apply`, **add** classes to the existing `@apply` instead of creating a new one
@@ -249,3 +249,105 @@ AskUserQuestion:
     - "Build only" — Run build and report warnings/errors
     - "I'll do it with /build-check" — End without verification
 ```
+
+---
+
+## VHouse-Specific Extensions
+
+The sections below apply specifically to the VHouse project, where heavy use of `var()` against a `@theme` token system in `_theme-tokens.css` makes the universal "Do NOT convert var()" rule too restrictive. When working in VHouse, these extensions OVERRIDE the corresponding universal rules.
+
+### Convertir var() a @theme tokens (la conversion MAS importante)
+
+La mayoria del CSS de VHouse usa `var()`. Eso NO significa "skip" — significa buscar si ese `var()` ya tiene un token mapeado en `_theme-tokens.css` (`@theme` block) y convertirlo a `@apply`.
+
+**Flujo**: `var(--xxx)` → buscar `--color-xxx`, `--shadow-xxx`, `--spacing-xxx`, etc. en `@theme` → si existe, convertir a `@apply`.
+
+**Antes de empezar cada ronda**, lee `_theme-tokens.css` para tener el mapa completo de tokens disponibles.
+
+Ejemplos reales del proyecto:
+
+| CSS con var() | Token @theme | @apply equivalente |
+|---------------|-------------|-------------------|
+| `background: var(--bg-primary)` | `--color-surface: var(--bg-primary)` | `@apply bg-surface` |
+| `background: var(--bg-secondary)` | `--color-surface-alt: var(--bg-secondary)` | `@apply bg-surface-alt` |
+| `color: var(--text-primary)` | `--color-content: var(--text-primary)` | `@apply text-content` |
+| `color: var(--text-secondary)` | `--color-content-secondary: var(--text-secondary)` | `@apply text-content-secondary` |
+| `color: var(--text-muted)` | `--color-content-muted: var(--text-muted)` | `@apply text-content-muted` |
+| `color: var(--primary)` | `--color-primary: var(--primary)` | `@apply text-primary` |
+| `border-color: var(--border-color)` | `--color-line: var(--border)` | `@apply border-line` |
+| `box-shadow: var(--shadow-md)` | (Tailwind built-in) | `@apply shadow-md` |
+| `border: 1px solid var(--border-color)` | combinacion | `@apply border border-line` |
+
+**Si el var() NO tiene token en @theme**: reportar como "token faltante" — NO skip, NO ignorar. Proponer agregarlo al @theme si tiene sentido.
+
+### NO convertir (incluso en VHouse) — dejar como esta
+
+- `calc()`, `color-mix()`, `clamp()` — expresiones compuestas que no mapean 1:1
+- Propiedades dentro de `@keyframes` — pero proponer reemplazo con `animate-*` si existe
+- Shorthand ambiguos con multiples valores (ej: `margin: 10px 20px 30px`)
+- Lineas que ya tienen `@apply`
+- `var()` que NO tiene token en @theme y NO es candidato a tenerlo NI a ser utility (ej: `var(--transition-base)` para transition timing). **Pero antes de declarar "no convertible", agotar las opciones** — ver VHouse Rule 16
+
+---
+
+### Zero-CSS Score: El `:` es el enemigo
+
+El caracter `:` dentro de un bloque CSS es la señal definitiva de CSS raw. **Cada `:` que no esta dentro de `@apply`, `@keyframes`, `@media`, un selector, o un comentario es una propiedad que todavia no se ha convertido.**
+
+#### Como medir
+
+Despues de cada lote, para cada archivo tocado, contar lineas con `:` que son CSS raw:
+
+**CONTAR como CSS raw (el enemigo):**
+- `background: var(--surface)` ← propiedad CSS raw
+- `color: #ff0000` ← hardcoded
+- `border: 1px solid var(--border)` ← shorthand raw
+- `padding: 0.5rem` ← valor magico
+- `font-size: 14px` ← deberia ser token
+- `transition: all 0.2s ease` ← raw transition
+- `box-shadow: 0 4px 12px rgba(...)` ← raw shadow
+- `background: linear-gradient(...)` ← deberia ser utility `grad-*`
+
+**NO contar (esto es correcto/inevitable):**
+- `@apply bg-surface text-white` ← ya convertido
+- `.selector-name {` ← es un selector, no propiedad
+- `.selector:hover {` ← pseudo-clase en selector
+- `/* comentario: esto es nota */` ← comentario
+- `@keyframes name {` ← definicion de animacion
+- propiedades DENTRO de `@keyframes` ← no convertibles
+- `@media (max-width: 768px) {` ← media query
+- `content: attr(data-column)` ← content con attr() no convertible
+- `--custom-property: value` ← definicion de variable CSS
+- `calc()`, `color-mix()`, `clamp()` ← expresiones compuestas
+
+#### Formato de reporte
+
+Al final de cada lote, mostrar tabla:
+
+| Archivo | Lineas raw ANTES | Lineas raw DESPUES | Reduccion |
+|---------|-----------------|-------------------|-----------|
+| `_header.css` | 23 | 8 | -65% |
+| `_badges.css` | 12 | 0 | -100% ✅ |
+
+**Si un archivo llega a 0 lineas raw**: ese archivo alcanzo **zero-CSS**. Celebrar.
+
+---
+
+### VHouse Project Rules (extend / override universal Rules above)
+
+1. **NUNCA** convertir propiedades dentro de `@keyframes` — pero si el keyframe tiene equivalente en Tailwind (`animate-spin`, `animate-pulse`, `animate-bounce`, `animate-ping`), proponer el reemplazo completo
+2. **SIEMPRE** buscar si un `var()` tiene token en `@theme` — si lo tiene, convertir a `@apply`. Si no lo tiene, reportar como "token faltante". Solo `calc()`, `color-mix()`, `clamp()` se dejan intactos. *(Esta regla OVERRIDE la regla universal 2)*
+3. **NUNCA** tocar lineas que ya tienen `@apply`
+4. **NUNCA** convertir shorthand ambiguos (ej: `margin: 10px 20px 30px`)
+5. Si una regla CSS ya tiene un `@apply` existente, **agregar** las clases al `@apply` existente en vez de crear uno nuevo
+6. Si un `@apply` crece a **12+ clases**, es senal de que el selector hace demasiado — proponer dividir en sub-componentes o repensar la estructura
+7. Preservar comentarios, orden de propiedades no-convertidas, y whitespace/indentacion
+8. Si un selector queda con TODAS sus propiedades convertidas a `@apply` y 0 propiedades raw, celebrar — eso es zero-CSS en accion
+9. **Cuidado con `!important`**: Si la propiedad original tiene `!important`, la conversion a `@apply` lo pierde. Marcar con `!` en Tailwind (`@apply !border-0`) o reportar como caso especial
+10. **Selectores complejos** (combinadores `>`, `+`, `~`, pseudo-selectors `:nth-child`, `:not`) NO se pueden expresar en `@apply` — evaluar si el componente se puede reestructurar para eliminar la dependencia del selector, o dejarlo como CSS
+11. **SIEMPRE** reportar valores magicos encontrados (colores hex, pixels custom, numeros sueltos) como deuda tecnica — no convertirlos, no ignorarlos
+12. **`background: linear-gradient(...)`** NUNCA debe existir inline — buscar si ya existe una utility `grad-*` en `_custom-utilities.css`. Si no existe y el patron se repite 2+ veces, crear una nueva `@utility grad-*`. Si es unico, dejarlo pero reportar
+13. **`border: var(--border-width) solid var(--border-color)`** es SIEMPRE `@apply border border-line`. `var(--border-width)` = 1px, `var(--border-color)` = `var(--border)` = token `line`. Lo mismo para `border-top`, `border-bottom`, etc → `border-t border-line`, `border-b border-line`
+14. **`rgba(R, G, B, alpha)` y `#hex` hardcodeados** son SIEMPRE sospechosos — buscar su equivalente en `_variables.css`. Colores comunes: `#3b82f6` = `var(--primary-accent)`, `#1e293b` = `var(--bg-secondary)`, `#334155` = `var(--bg-tertiary)`/`var(--border-color)`. **NUNCA** usar `border-[rgba(...)]` ni `border-[#hex]` — eso es CSS hardcodeado con ropa de Tailwind. Usar tokens del sistema o crearlos
+15. **`border-top-left-radius` / `border-bottom-right-radius` / etc.** se reemplazan con `rounded-t-*`, `rounded-b-*`, `rounded-l-*`, `rounded-r-*`, `rounded-tl-*`, etc.
+16. **NUNCA rechazar una conversion sin explorar alternativas.** Si un `var()` no tiene token en `@theme`, la respuesta NO es "se queda raw" — es: (1) buscar si ya existe un `@utility` en `_custom-utilities.css` que lo encapsule, (2) si no existe, **crear un `@utility`** que envuelva el `var()` (ej: `@utility text-card-price { color: var(--card-price-color); }`), (3) solo si la propiedad es genuinamente unica y no reutilizable (ej: un `calc()` one-off), dejarla raw. El default es CONVERTIR, no dejar. "No tiene token" es un problema a resolver, no una excusa para skip
