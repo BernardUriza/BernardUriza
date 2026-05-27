@@ -1,120 +1,251 @@
-# CSS to Tailwind — Zero-CSS Refactorizador
+# CSS to Tailwind — Zero-CSS Enforcer
+
+ARGUMENTS: $ARGUMENTS
 
 ## Vision: Only-Tailwind / Zero-CSS
 
-Este comando NO es un traductor de propiedades CSS a clases Tailwind. Es un **refactorizador** que investiga como Tailwind v4 elimina la necesidad de CSS raw por completo.
+This command has TWO modes of operation:
 
-Cuando encuentres CSS raw, no busques "la clase equivalente" — investiga como la comunidad Tailwind **resuelve ese problema de manera idiomatica**. A veces la respuesta no es una clase sino un cambio de estructura:
+1. **CSS Raw → Tailwind**: Convert raw CSS properties to `@apply` with Tailwind utilities
+2. **Inline → Semantic Extraction**: Find inline Tailwind classes in markup (`.tsx`, `.razor`, etc.) that should be extracted to semantic classes with `@apply` in CSS files
 
-- Un `::before` con content se reemplaza con un `<span>` + utilidades
-- Un `@keyframes` custom se reemplaza con `animate-spin`, `animate-pulse`, etc.
-- Un `@media (max-width: 768px)` se reemplaza con variantes responsive (`md:`, `lg:`) en el markup
-- Un `:hover` en CSS se reemplaza con `hover:` directamente en la clase
-- Un `.dark .element` se reemplaza con `dark:` en el elemento
+When you find raw CSS, don't look for "the equivalent class" — investigate how Tailwind v4 **solves that problem idiomatically**. Sometimes the answer isn't a class but a structural change:
 
-**Si la refactorizacion requiere varios niveles** (CSS + markup + componente), proponlo como plan al usuario antes de aplicar. Usa `WebSearch` para investigar patrones only-Tailwind cuando no tengas certeza.
+- A `::before` with content gets replaced with a `<span>` + utilities
+- A custom `@keyframes` gets replaced with `animate-spin`, `animate-pulse`, etc.
+- A `@media (max-width: 768px)` gets replaced with responsive variants (`md:`, `lg:`) in markup
+- A `:hover` in CSS gets replaced with `hover:` directly on the class
+- A `.dark .element` gets replaced with `dark:` on the element
 
-El objetivo es que cada archivo CSS tienda a cero lineas. No mañana — pero cada ronda debe acercarnos.
+**If the refactoring requires multiple levels** (CSS + markup + component), propose it as a plan to the user before applying. Use `WebSearch` to research only-Tailwind patterns when unsure.
+
+The goal is for every CSS file to trend toward zero lines and every component to use semantic classes instead of utility soup. Not tomorrow — but every round should get us closer.
 
 ---
 
-## Instrucciones
+## Instructions
 
-### Fase 1: Descubrir archivos
+### Phase 0: Auto-Detect Project
 
-1. Usa `Glob` para encontrar archivos `.css` en `src/VHouse.UI/wwwroot/css/` (excluyendo `dist/` y `output.css`).
-2. Si el usuario especifico un directorio o archivo, limitar el scope a eso.
-3. Si no especifico nada, usar los archivos **modificados recientemente** (git diff o mtime).
+Detect the project stack automatically before doing anything:
 
-### Fase 2: Leer y convertir por lotes
+1. **Find CSS files**:
+   ```
+   Glob: **/*.css (excluding node_modules, dist, .next, output.css, vendor)
+   ```
 
-1. Lee archivos en lotes de **5-8 archivos** en paralelo (Read tool).
-2. Para cada archivo, analiza el CSS con criterio: que se puede convertir directo, que requiere refactorizacion multinivel, que son valores magicos.
-3. Aplica conversiones directas usando el Edit tool.
-4. Reporta un resumen por lote: `N conversiones en M archivos`.
-5. Si hay propuestas multinivel, listarlas como plan para el usuario.
-6. Pregunta si continuar al siguiente lote.
+2. **Detect stack** by checking for key files:
+   | File found | Stack | Build command |
+   |------------|-------|---------------|
+   | `next.config.*` | Next.js / React | `npx next build` |
+   | `*.csproj` | .NET / Blazor | `dotnet build` |
+   | `vite.config.*` | Vite / React | `npx vite build` |
+   | `angular.json` | Angular | `npx ng build` |
+   | `tailwind.config.*` only | Generic Tailwind | `npx tailwindcss build` |
 
-### Fase 3: Verificar build
+3. **Detect style directory**: Find where `@apply` rules live (e.g., `src/app/styles/`, `wwwroot/css/`, `src/styles/`)
 
-Despues de aplicar TODOS los lotes:
+4. **Detect component file extension**: `.tsx`, `.jsx`, `.razor`, `.vue`, `.svelte`
 
-```bash
-npm run css:build && dotnet build src/VHouse.UI/VHouse.UI.csproj
+5. Report: "Detected [stack] project. CSS in [dir]. Components are [ext]. Build: [cmd]."
+
+### Phase 1: Mode Selection
+
+```
+AskUserQuestion:
+  question: "Which mode do you want to run?"
+  options:
+    - "CSS Raw → Tailwind @apply" — Convert raw CSS properties to Tailwind utilities
+    - "Inline → Semantic Extraction" — Extract utility combos from markup to semantic classes
+    - "Both" — CSS raw first, then inline extraction
 ```
 
+If `$ARGUMENTS` specifies a file or directory, skip this question and auto-detect:
+- If argument points to `.css` file(s) → CSS Raw mode
+- If argument points to component file(s) (`.tsx`, `.razor`, etc.) → Inline Extraction mode
+- If argument is a directory → Both modes on that scope
+
 ---
 
-## Que Convertir
+## Mode A: CSS Raw → Tailwind @apply
 
-Usa tu conocimiento de Tailwind CSS. No necesitas tabla — aplica criterio:
+### Phase A1: Discover CSS Files
 
-### Convertir con confianza (directo a @apply)
+1. Use `Glob` to find `.css` files in the detected style directory
+2. If user specified a scope via `$ARGUMENTS`, limit to that
+3. If no scope, use files **modified recently** (git diff or mtime)
 
-Propiedades donde el mapping CSS -> Tailwind es 1:1:
+### Phase A2: Read and Convert in Batches
+
+1. Read files in batches of **5-8 files** in parallel (Read tool)
+2. For each file, analyze with criteria:
+   - Direct conversion (1:1 CSS → Tailwind)
+   - Multi-level refactoring needed (CSS + markup changes)
+   - Magic values (hardcoded colors, sizes, non-standard numbers)
+3. Apply direct conversions using Edit tool
+4. Report summary per batch: `N conversions in M files`
+5. If multi-level proposals exist, list them as a plan for the user
+6. Ask whether to continue to next batch
+
+### What to Convert Directly (to @apply)
+
+Properties where the CSS → Tailwind mapping is 1:1:
 
 - **Layout**: display, position, float, clear, box-sizing
 - **Flexbox**: flex-direction, flex-wrap, flex-grow, flex-shrink, align-items, justify-content, align-self, order
 - **Grid**: place-items, place-content, grid-auto-flow, align-self
-- **Spacing**: margin/padding cuando el valor es `0` o `auto`
-- **Sizing**: width/height con valores keyword (`100%`, `auto`, `100vh`, `min-content`, `max-content`, `fit-content`)
+- **Spacing**: margin/padding when value is `0` or `auto`
+- **Sizing**: width/height with keyword values (`100%`, `auto`, `100vh`, `min-content`, `max-content`, `fit-content`)
 - **Typography**: text-align, text-transform, text-decoration, font-style, font-weight, white-space, text-overflow
 - **Visual**: overflow, visibility, opacity, cursor, pointer-events, user-select, appearance, resize, object-fit, list-style
-- **Position values**: top/right/bottom/left/inset cuando el valor es `0`
+- **Position values**: top/right/bottom/left/inset when value is `0`
 - **Borders**: border `0`/`none`, border-radius `0`/`9999px`/`50%`
 - **Background**: `transparent`, `none`
-- **Z-index**: valores estandar de Tailwind (0, 10, 20, 30, 40, 50, auto)
+- **Z-index**: standard Tailwind values (0, 10, 20, 30, 40, 50, auto)
 - **Transitions**: transition-property, transition-duration, transition-timing-function, will-change
 - **Misc**: outline `none`/`0`, transform `none`
 
-### Proponer como refactorizacion multinivel (no aplicar sin plan)
+### Propose as Multi-Level Refactoring (do NOT apply without plan)
 
-Estas requieren cambios en CSS + markup + posiblemente el componente Razor:
+These require changes in CSS + markup + possibly the component:
 
-- **Media queries** (`@media`): En Tailwind se resuelven con variantes responsive (`sm:`, `md:`, `lg:`, `xl:`, `2xl:`) directamente en el markup. Convertir requiere mover la logica del CSS al `.razor`
-- **Pseudo-clases** (`:hover`, `:focus`, `:active`, `:disabled`, `:first-child`): En Tailwind son variantes (`hover:`, `focus:`, `active:`, `disabled:`, `first:`). Requiere mover al markup
-- **Pseudo-elementos** (`::before`, `::after`): En Tailwind v4 son `before:` y `after:` con `content-['']`, pero a veces es mejor reemplazar con un `<span>` real
-- **Dark mode** (`prefers-color-scheme: dark`, `.dark`): En Tailwind es la variante `dark:`. Requiere mover al markup
-- **Selectores complejos** (`.parent > .child:nth-child(2)`, `.foo + .bar`): No tienen equivalente en Tailwind. Evaluar si el componente se puede reestructurar o si es CSS que debe quedarse
+- **Media queries** (`@media`): Tailwind resolves with responsive variants (`sm:`, `md:`, `lg:`, `xl:`, `2xl:`) directly in markup
+- **Pseudo-classes** (`:hover`, `:focus`, `:active`, `:disabled`, `:first-child`): Tailwind variants (`hover:`, `focus:`, `active:`, `disabled:`, `first:`)
+- **Pseudo-elements** (`::before`, `::after`): Tailwind v4 `before:` and `after:` with `content-['']`, or replace with a real `<span>`
+- **Dark mode** (`prefers-color-scheme: dark`, `.dark`): Tailwind `dark:` variant
+- **Complex selectors** (`.parent > .child:nth-child(2)`, `.foo + .bar`): No Tailwind equivalent — evaluate restructuring
 
-### NO convertir — dejar como esta
+### Do NOT Convert
 
-- Propiedades con `var()`, `calc()`, `color-mix()`, `clamp()` — dependen del design system
-- Propiedades dentro de `@keyframes` — pero proponer reemplazo con `animate-*` si existe
-- Shorthand ambiguos con multiples valores (ej: `margin: 10px 20px 30px`)
-- Lineas que ya tienen `@apply`
-
-### Reportar como deuda tecnica
-
-Valores magicos — numeros, colores, sizes hardcodeados que no pertenecen a ningun token. **Reportar al final de cada ronda** en tabla:
-
-| Archivo | Linea | Propiedad | Valor magico | Sugerencia |
-|---------|-------|-----------|--------------|------------|
-| `_header.css` | 42 | `color` | `#3b82f6` | Deberia ser `var(--brand-primary)` o token |
-| `_grid.css` | 18 | `padding` | `13px` | No esta en escala Tailwind, definir token |
+- Properties with `var()`, `calc()`, `color-mix()`, `clamp()` — depend on design system
+- Properties inside `@keyframes` — but propose replacement with `animate-*` if one exists
+- Ambiguous shorthand with multiple values (e.g., `margin: 10px 20px 30px`)
+- Lines that already have `@apply`
 
 ---
 
-## Reglas
+## Mode B: Inline → Semantic Extraction
 
-1. **NUNCA** convertir propiedades dentro de `@keyframes` — pero si el keyframe tiene equivalente en Tailwind (`animate-spin`, `animate-pulse`, `animate-bounce`, `animate-ping`), proponer el reemplazo completo
-2. **NUNCA** convertir propiedades que usan `var()`, `calc()`, `color-mix()`, `clamp()`
-3. **NUNCA** tocar lineas que ya tienen `@apply`
-4. **NUNCA** convertir shorthand ambiguos (ej: `margin: 10px 20px 30px`)
-5. Si una regla CSS ya tiene un `@apply` existente, **agregar** las clases al `@apply` existente en vez de crear uno nuevo
-6. Si un `@apply` crece a **12+ clases**, es senal de que el selector hace demasiado — proponer dividir en sub-componentes o repensar la estructura
-7. Preservar comentarios, orden de propiedades no-convertidas, y whitespace/indentacion
-8. Si el archivo tiene menos de 3 propiedades convertibles, **skip** — no vale la pena el churn
-9. **Cuidado con `!important`**: Si la propiedad original tiene `!important`, la conversion a `@apply` lo pierde. Marcar con `!` en Tailwind (`@apply !border-0`) o reportar como caso especial
-10. **Selectores complejos** (combinadores `>`, `+`, `~`, pseudo-selectors `:nth-child`, `:not`) NO se pueden expresar en `@apply` — evaluar si el componente se puede reestructurar para eliminar la dependencia del selector, o dejarlo como CSS
-11. **SIEMPRE** reportar valores magicos encontrados (colores hex, pixels custom, numeros sueltos) como deuda tecnica — no convertirlos, no ignorarlos
+### Phase B1: Discover Components with Utility Soup
+
+1. Use `Grep` to find component files with long `className` strings:
+   ```
+   Grep: className.*["'`].{40,} (in detected component extension)
+   ```
+2. If user specified scope, limit to that directory/file
+3. Sort results by string length (longest = most urgent to extract)
+
+### Phase B2: Analyze and Classify
+
+For each long className found, classify:
+
+| Criteria | Action |
+|----------|--------|
+| **Reused 2+ times** (same utility combo in multiple files) | MUST extract — always |
+| **Single-use but >40 chars** | Extract for readability and regression resistance |
+| **Identifiable UI primitive** (button, card, badge, form field, toggle) | Extract even if single-use |
+| **Layout-only wrapper** (`mt-4 flex` and similar) | DO NOT extract — leave inline |
+| **One-off positioning** (`absolute top-2 right-3`) | DO NOT extract — leave inline |
+| **Contains `group`** | Keep `group` inline, extract the rest to @apply class |
+
+### Phase B3: Extract to Semantic Classes
+
+For each extraction candidate:
+
+1. **Name by role**, not by utilities: `.btn-primary` not `.flex-center-gap-4`
+2. **Choose the right CSS file** based on domain:
+   - Buttons → `buttons.css`
+   - Forms → `forms.css`
+   - Cards → `cards.css`
+   - Badges → `badges.css`
+   - Dashboard elements → `dashboard.css`
+   - Settings elements → `settings.css`
+   - Modals → `modals.css`
+   - Animations → `animations.css`
+   - If no domain fits, create a new file or use a general one
+3. **Create the @apply rule** in the appropriate CSS file
+4. **Replace inline utilities** in the component with the new class name
+5. If the component uses `cn()`, keep the semantic class in `cn()` for merge compatibility
+
+### Phase B4: Deduplication Sweep
+
+After extracting, search for duplicate utility patterns across the codebase:
+
+```
+Grep: the extracted utility combo (or significant portion)
+```
+
+If the same pattern appears in other files → replace with the new semantic class.
+
+Report:
+
+| Semantic Class | Defined In | Used In | LOC Saved |
+|----------------|-----------|---------|-----------|
+| `.btn-primary` | `buttons.css` | `Header.tsx`, `Sidebar.tsx`, `Modal.tsx` | -45 |
+
+### Semantic Token Migration (opportunistic)
+
+While touching files, migrate hardcoded colors to semantic tokens:
+
+| Hardcoded | Semantic Token |
+|-----------|---------------|
+| `bg-white` | `bg-background` |
+| `bg-gray-50` | `bg-muted` |
+| `bg-gray-100` | `bg-muted` |
+| `text-gray-900` | `text-foreground` |
+| `text-gray-500` | `text-muted-foreground` |
+| `text-gray-400` | `text-muted-foreground` |
+| `border-gray-200` | `border-border` |
+| `border-gray-300` | `border-border` |
+| `bg-blue-600` | `bg-primary` |
+| `text-blue-600` | `text-primary` |
+| `bg-red-500` | `bg-destructive` |
+| `text-red-500` | `text-destructive` |
+
+Only migrate when confident of the mapping. If unsure, report as debt.
 
 ---
 
-## Cierre: Build y Verificacion
+## Report: Magic Values / Technical Debt
 
-Al terminar TODO el trabajo del comando, pregunta con `AskUserQuestion`:
+At the end of each round, report magic values found:
 
-- **"Build + Chrome DevTools"**: Correr `dotnet build`, reportar warnings/errores, abrir Chrome DevTools, tomar screenshot y verificar visualmente, reportar errores de consola
-- **"Solo build"**: Correr `dotnet build` y reportar warnings/errores sin abrir Chrome
-- **"Yo lo hago con /build-check"**: Terminar sin verificar — el usuario correra `/build-check` manualmente
+| File | Line | Property/Class | Magic Value | Suggestion |
+|------|------|---------------|-------------|------------|
+| `header.css` | 42 | `color` | `#3b82f6` | Should be `var(--brand-primary)` or token |
+| `Grid.tsx` | 18 | `className` | `p-[13px]` | Not on Tailwind scale — define token or use `p-3` |
+
+---
+
+## Rules
+
+1. **NEVER** convert properties inside `@keyframes` — but propose replacement with `animate-*` if equivalent exists
+2. **NEVER** convert properties using `var()`, `calc()`, `color-mix()`, `clamp()`
+3. **NEVER** touch lines that already have `@apply`
+4. **NEVER** convert ambiguous shorthand (e.g., `margin: 10px 20px 30px`)
+5. If a CSS rule already has an existing `@apply`, **add** classes to the existing `@apply` instead of creating a new one
+6. If an `@apply` grows to **12+ classes**, that selector does too much — propose splitting into sub-components
+7. Preserve comments, order of non-converted properties, and whitespace/indentation
+8. If a file has fewer than 3 convertible properties, **skip** — not worth the churn
+9. **`!important` caution**: If original property has `!important`, `@apply` loses it. Use `!` prefix in Tailwind (`@apply !border-0`) or report as special case
+10. **Complex selectors** (combinators `>`, `+`, `~`, pseudo-selectors `:nth-child`, `:not`) cannot be expressed in `@apply` — evaluate component restructuring or leave as CSS
+11. **ALWAYS** report magic values (hex colors, custom pixels, loose numbers) as technical debt
+12. **`group` cannot be in `@apply`** — keep `group` inline in the component, only extract `group-hover:*` utilities
+13. **Name semantic classes by role**, not by utilities: `.card-hover` not `.rounded-lg-shadow-md-p-4`
+14. **Do NOT extract layout-only wrappers** — `mt-4 flex` is not a semantic class
+15. **Do NOT extract one-off positioning** — `absolute top-2 right-3` stays inline
+
+---
+
+## Closing: Build and Verification
+
+When ALL work from the command is done, run the build command detected in Phase 0:
+
+```
+AskUserQuestion:
+  question: "Build + verification?"
+  options:
+    - "Build + Chrome DevTools" — Run build, report, open Chrome, take screenshot, check console
+    - "Build only" — Run build and report warnings/errors
+    - "I'll do it with /build-check" — End without verification
+```

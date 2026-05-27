@@ -1,730 +1,729 @@
-# /modify-command - Wizard Interactivo para Crear y Modificar Comandos de Claude Code
+# /modify-command - Interactive Wizard for Creating and Modifying Claude Code Commands
 
-## Contexto
+## Context
 
-Este comando lanza un **wizard interactivo** que guia al usuario paso a paso para crear un comando nuevo o modificar uno existente en `.claude/commands/`. Usa `AskUserQuestion` en cada paso para recopilar contexto, preferencias y restricciones antes de generar el archivo `.md` final.
+This command launches an **interactive wizard** that guides the user step by step to create a new command or modify an existing one in `.claude/commands/`. It uses `AskUserQuestion` at each step to gather context, preferences, and constraints before generating the final `.md` file.
 
-**Directorio de comandos**: `.claude/commands/`
-**Formato de archivo**: Markdown (`.md`)
-**Invocacion**: `/nombre-del-comando` en Claude Code
-
----
-
-## Instrucciones de Ejecucion
-
-### IMPORTANTE: Flujo Obligatorio
-
-1. **NUNCA** generar un comando sin completar TODAS las preguntas
-2. **SIEMPRE** usar `AskUserQuestion` para cada paso — no asumir respuestas
-3. **SIEMPRE** mostrar un preview del comando generado ANTES de escribir el archivo
-4. **SIEMPRE** verificar que el nombre del comando no colisione con uno existente (al crear)
-5. **SIEMPRE** leer el comando existente completo antes de modificarlo
+**Commands directory**: `.claude/commands/`
+**File format**: Markdown (`.md`)
+**Invocation**: `/command-name` in Claude Code
 
 ---
 
-## PASO 0: Descubrimiento — Inventario de Comandos Existentes
+## Execution Instructions
 
-Antes de la primera pregunta, Claude DEBE escanear AMBAS fuentes de comandos:
+### IMPORTANT: Mandatory Flow
 
-1. **Comandos GLOBALES** (compartidos entre todos los repos):
+1. **NEVER** generate a command without completing ALL questions
+2. **ALWAYS** use `AskUserQuestion` for each step — don't assume answers
+3. **ALWAYS** show a preview of the generated command BEFORE writing the file
+4. **ALWAYS** verify that the command name doesn't collide with an existing one (when creating)
+5. **ALWAYS** read the existing command completely before modifying it
+
+---
+
+## STEP 0: Discovery — Inventory of Existing Commands
+
+Before the first question, Claude MUST scan BOTH command sources:
+
+1. **GLOBAL commands** (shared across all repos):
    ```bash
    ls -la ~/.claude/commands/*.md 2>/dev/null
    ```
 
-2. **Comandos LOCALES** (específicos de este proyecto):
+2. **LOCAL commands** (specific to this project):
    ```bash
    ls -la .claude/commands/*.md 2>/dev/null
    ```
 
-3. Leer el contenido de cada comando para tener contexto completo de lo que ya existe.
+3. Read the content of each command to have full context of what already exists.
 
-4. Construir un inventario mental con la fuente de cada uno:
-   - Nombre del comando
-   - **Fuente**: 🌐 Global (`~/.claude/commands/`) o 📁 Local (`.claude/commands/`)
-   - Proposito (primera linea del archivo)
-   - Cantidad de lineas (LOC)
-   - Si tiene `ARGUMENTS` o no
-   - Tono/personalidad (formal, agresivo, tecnico, etc.)
+4. Build a mental inventory with the source of each one:
+   - Command name
+   - **Source**: 🌐 Global (`~/.claude/commands/`) or 📁 Local (`.claude/commands/`)
+   - Purpose (first line of the file)
+   - Line count (LOC)
+   - Whether it has `ARGUMENTS` or not
+   - Tone/personality (formal, aggressive, technical, etc.)
 
-**IMPORTANTE**: Los comandos locales tienen prioridad sobre los globales si hay colision de nombres.
+**IMPORTANT**: Local commands take priority over global ones if there's a name collision.
 
-Los comandos globales viven en el repo `BernardUriza/BernardUriza` (profile repo) y se sincronizan via symlink. Si el usuario quiere crear/modificar un comando universal, escribir en `~/.claude/commands/`. Si es específico del proyecto actual, escribir en `.claude/commands/`.
+Global commands live in the repo `BernardUriza/BernardUriza` (profile repo) and are synced via symlink. If the user wants to create/modify a universal command, write to `~/.claude/commands/`. If it's specific to the current project, write to `.claude/commands/`.
 
-Este inventario se usa en las preguntas posteriores para ofrecer opciones informadas.
+This inventory is used in subsequent questions to offer informed options.
 
 ---
 
-## PASO 1: Pregunta Inicial — Crear o Modificar
+## STEP 1: Initial Question — Create or Modify
 
 ```
 AskUserQuestion:
-  question: "Quieres crear un comando nuevo o modificar uno existente?"
-  header: "Accion"
+  question: "Do you want to create a new command or modify an existing one?"
+  header: "Action"
   options:
-    - label: "Crear nuevo comando"
-      description: "Disenar un comando desde cero con nombre, proposito y comportamiento personalizado"
-    - label: "Modificar comando existente"
-      description: "Editar un comando que ya existe — cambiar su comportamiento, agregar fases, ajustar tono"
-    - label: "Duplicar y adaptar"
-      description: "Tomar un comando existente como base y crear una variante con cambios"
-    - label: "Eliminar comando"
-      description: "Revisar y confirmar eliminacion de un comando que ya no se usa"
+    - label: "Create new command"
+      description: "Design a command from scratch with custom name, purpose, and behavior"
+    - label: "Modify existing command"
+      description: "Edit a command that already exists — change its behavior, add phases, adjust tone"
+    - label: "Duplicate and adapt"
+      description: "Take an existing command as a base and create a variant with changes"
+    - label: "Delete command"
+      description: "Review and confirm deletion of a command that's no longer used"
 ```
 
-### Comportamiento segun respuesta:
+### Behavior per response:
 
-**Crear nuevo comando** -> Ir a PASO 1B (Scope) -> PASO 2A (Nombre)
-**Modificar existente** -> Ir a PASO 2B (Seleccion)
-**Duplicar y adaptar** -> Ir a PASO 2C (Seleccion + Nombre nuevo)
-**Eliminar comando** -> Ir a PASO 2D (Confirmacion)
+**Create new command** -> Go to STEP 1B (Scope) -> STEP 2A (Name)
+**Modify existing** -> Go to STEP 2B (Selection)
+**Duplicate and adapt** -> Go to STEP 2C (Selection + New name)
+**Delete command** -> Go to STEP 2D (Confirmation)
 
 ---
 
-## PASO 1B: Scope — Global o Local
+## STEP 1B: Scope — Global or Local
 
 ```
 AskUserQuestion:
-  question: "Donde debe vivir este comando?"
+  question: "Where should this command live?"
   header: "Scope"
   options:
-    - label: "🌐 Global (todos los repos)"
-      description: "Se guarda en ~/.claude/commands/ (synced via BernardUriza/BernardUriza repo). Disponible en TODOS los proyectos."
-    - label: "📁 Local (solo este proyecto)"
-      description: "Se guarda en .claude/commands/ de este repo. Solo disponible aqui."
+    - label: "🌐 Global (all repos)"
+      description: "Saved in ~/.claude/commands/ (synced via BernardUriza/BernardUriza repo). Available in ALL projects."
+    - label: "📁 Local (this project only)"
+      description: "Saved in .claude/commands/ of this repo. Only available here."
 ```
 
-**Global**: Escribir en `~/.claude/commands/[nombre].md`. Despues recordar al usuario hacer commit+push en el profile repo.
-**Local**: Escribir en `.claude/commands/[nombre].md` como antes.
+**Global**: Write to `~/.claude/commands/[name].md`. Afterwards remind the user to commit+push in the profile repo.
+**Local**: Write to `.claude/commands/[name].md` as before.
 
 ---
 
-## PASO 2A: Nombre del Comando (solo para creacion)
+## STEP 2A: Command Name (creation only)
 
 ```
 AskUserQuestion:
-  question: "Como quieres que se llame el comando? (sera invocado como /nombre)"
-  header: "Nombre"
+  question: "What do you want to name the command? (it will be invoked as /name)"
+  header: "Name"
   options:
-    - label: "Sugerir nombres"
-      description: "Claude sugiere 3-4 nombres basados en el proposito que describas a continuacion"
-    - label: "Ya tengo nombre"
-      description: "Escribire el nombre exacto que quiero usar"
+    - label: "Suggest names"
+      description: "Claude suggests 3-4 names based on the purpose you describe next"
+    - label: "I already have a name"
+      description: "I'll write the exact name I want to use"
 ```
 
-### Validaciones del nombre:
-- Solo letras minusculas, numeros y guiones: `[a-z0-9-]+`
-- No puede empezar ni terminar con guion
-- No puede colisionar con comandos existentes
-- No puede colisionar con comandos built-in de Claude Code (`help`, `clear`, `compact`, `config`, etc.)
-- Maximo 30 caracteres
-- Debe ser descriptivo (no `cmd1` o `test123`)
+### Name validations:
+- Only lowercase letters, numbers, and hyphens: `[a-z0-9-]+`
+- Cannot start or end with a hyphen
+- Cannot collide with existing commands
+- Cannot collide with Claude Code built-in commands (`help`, `clear`, `compact`, `config`, etc.)
+- Maximum 30 characters
+- Must be descriptive (not `cmd1` or `test123`)
 
-### Comandos built-in reservados (NO usar estos nombres):
+### Reserved built-in commands (DO NOT use these names):
 - `help`, `clear`, `compact`, `config`, `cost`, `doctor`, `fast`
 - `init`, `login`, `logout`, `memory`, `model`, `permissions`
 - `review`, `status`, `terminal-setup`, `vim`, `bug`
 
-Si el nombre colisiona, informar al usuario y pedir otro.
+If the name collides, inform the user and ask for another.
 
 ---
 
-## PASO 2B: Seleccion de Comando Existente (solo para modificacion)
+## STEP 2B: Select Existing Command (modification only)
 
-Presentar los comandos existentes como opciones:
+Present the existing commands as options:
 
 ```
 AskUserQuestion:
-  question: "Cual comando quieres modificar?"
-  header: "Comando"
+  question: "Which command do you want to modify?"
+  header: "Command"
   options:
     - label: "/work"
-      description: "Inicio de sesion de trabajo con mentor exigente (75 lineas)"
+      description: "Work session start with demanding mentor (75 lines)"
     - label: "/ux-polish"
-      description: "Rondas de UX quick wins para pages/features (83 lineas)"
+      description: "UX quick wins rounds for pages/features (83 lines)"
     - label: "/insult"
-      description: "Revisor agresivo con personalidad vulgar mexicana (93 lineas)"
+      description: "Aggressive reviewer with blunt personality (93 lines)"
     - label: "/css-to-tailwind"
-      description: "Convertidor batch de CSS raw a Tailwind @apply (187 lineas)"
+      description: "Batch converter from raw CSS to Tailwind @apply (187 lines)"
 ```
 
-Las opciones se generan DINAMICAMENTE del inventario del PASO 0.
-Incluir LOC y descripcion corta para cada uno.
+Options are generated DYNAMICALLY from the STEP 0 inventory.
+Include LOC and short description for each one.
 
 ---
 
-## PASO 2C: Duplicar y Adaptar
+## STEP 2C: Duplicate and Adapt
 
-Misma seleccion que PASO 2B, pero despues preguntar el nombre nuevo (PASO 2A).
-Leer el contenido completo del comando fuente como base.
-
----
-
-## PASO 2D: Eliminacion
-
-Mostrar el contenido del comando a eliminar y pedir confirmacion explicita.
-Si el usuario confirma, eliminar con `rm` y reportar.
+Same selection as STEP 2B, but then ask for the new name (STEP 2A).
+Read the complete content of the source command as a base.
 
 ---
 
-## PASO 3: Proposito y Alcance
+## STEP 2D: Deletion
 
-```
-AskUserQuestion:
-  question: "Cual es el proposito principal de este comando? Describe en 1-2 oraciones que deberia hacer cuando se invoque."
-  header: "Proposito"
-  options:
-    - label: "Automatizacion de codigo"
-      description: "Refactorizar, limpiar, convertir, migrar codigo automaticamente"
-    - label: "Auditoria / Revision"
-      description: "Analizar codigo/UI y reportar hallazgos clasificados por severidad"
-    - label: "Personalidad / Modo"
-      description: "Activar un modo de interaccion especifico (tono, idioma, actitud)"
-    - label: "Workflow / Proceso"
-      description: "Guiar un flujo de trabajo con pasos definidos (deploy, testing, onboarding)"
-```
-
-### Seguimiento automatico:
-
-Despues de la seleccion, Claude DEBE preguntar en texto libre:
-> "Describeme en tus propias palabras que deberia hacer exactamente este comando. Cuanto mas detalle, mejor queda."
-
-Esto se captura como el `Other` de AskUserQuestion o como un mensaje de seguimiento.
+Show the content of the command to delete and ask for explicit confirmation.
+If the user confirms, delete with `rm` and report.
 
 ---
 
-## PASO 4: Tono y Personalidad
+## STEP 3: Purpose and Scope
 
 ```
 AskUserQuestion:
-  question: "Que tono debe tener el comando cuando se ejecute?"
-  header: "Tono"
+  question: "What is the main purpose of this command? Describe in 1-2 sentences what it should do when invoked."
+  header: "Purpose"
   options:
-    - label: "Profesional directo"
-      description: "Sin adornos, instrucciones ejecutables, como un manual tecnico. Ejemplo: /work"
-    - label: "Agresivo mexicano"
-      description: "Vulgar, energico, ataca el codigo malo. Leal al usuario. Ejemplo: /insult"
-    - label: "Mentor paciente"
-      description: "Explicativo, didactico, guia paso a paso sin presion"
-    - label: "Silencioso eficiente"
-      description: "Minimo texto, maximo accion. Solo reporta resultados, no explica. Ejemplo: /css-to-tailwind"
+    - label: "Code automation"
+      description: "Refactor, clean, convert, migrate code automatically"
+    - label: "Audit / Review"
+      description: "Analyze code/UI and report findings classified by severity"
+    - label: "Personality / Mode"
+      description: "Activate a specific interaction mode (tone, language, attitude)"
+    - label: "Workflow / Process"
+      description: "Guide a workflow with defined steps (deploy, testing, onboarding)"
 ```
 
-### Notas por tono:
+### Automatic follow-up:
 
-**Profesional directo**:
-- Estructura: Contexto -> Diagnostico -> Accion -> Cierre
-- Sin emojis a menos que el usuario los pida
-- Lenguaje imperativo: "Haz X", "Verifica Y", "Reporta Z"
+After the selection, Claude MUST ask in free text:
+> "Describe in your own words what exactly this command should do. The more detail, the better it turns out."
 
-**Agresivo mexicano**:
-- Idioma: Espanol vulgar mexicano SIEMPRE
-- Insultos van al CODIGO, nunca al usuario
-- Autocritica cuando Claude se equivoca
-- Metaforas coloridas y tecnicas
-
-**Mentor paciente**:
-- Explica el POR QUE de cada paso
-- Ofrece alternativas cuando hay trade-offs
-- Celebra progreso, no solo resultado final
-- Pregunta antes de asumir
-
-**Silencioso eficiente**:
-- Cero explicaciones innecesarias
-- Tablas de resumen en vez de parrafos
-- Solo habla cuando hay error o decision requerida
-- Output minimo: "N cambios en M archivos. Build limpio."
+This is captured as the `Other` from AskUserQuestion or as a follow-up message.
 
 ---
 
-## PASO 5: Estructura y Fases
+## STEP 4: Tone and Personality
 
 ```
 AskUserQuestion:
-  question: "Como debe estar estructurado el flujo del comando?"
-  header: "Estructura"
+  question: "What tone should the command have when it runs?"
+  header: "Tone"
   options:
-    - label: "Fases secuenciales"
-      description: "Fase 1 -> Fase 2 -> Fase 3. Cada fase completa antes de avanzar. Ejemplo: /ux-polish (Auditoria -> Implementacion -> Verificacion)"
-    - label: "Rondas iterativas"
-      description: "Lotes de N cambios, build, reportar, preguntar si continuar. Ejemplo: /css-to-tailwind"
-    - label: "Una sola pasada"
-      description: "Ejecutar todo de principio a fin sin pausas intermedias"
-    - label: "Interactivo continuo"
-      description: "Preguntar al usuario en cada decision clave, como un wizard"
+    - label: "Direct professional"
+      description: "No frills, executable instructions, like a technical manual. Example: /work"
+    - label: "Aggressive blunt"
+      description: "Raw, high-energy, attacks bad code. Loyal to the user. Example: /insult"
+    - label: "Patient mentor"
+      description: "Explanatory, didactic, step-by-step guidance without pressure"
+    - label: "Silent efficient"
+      description: "Minimum text, maximum action. Only reports results, doesn't explain. Example: /css-to-tailwind"
 ```
 
-### Seguimiento para fases secuenciales:
+### Notes per tone:
+
+**Direct professional**:
+- Structure: Context -> Diagnosis -> Action -> Closing
+- No emojis unless the user requests them
+- Imperative language: "Do X", "Verify Y", "Report Z"
+
+**Aggressive blunt**:
+- Aggressive, blunt, in the user's language. Code stays in English.
+- Insults go toward the CODE, never the user
+- Self-criticism when Claude makes mistakes
+- Colorful and technical metaphors
+
+**Patient mentor**:
+- Explains the WHY of each step
+- Offers alternatives when there are trade-offs
+- Celebrates progress, not just the final result
+- Asks before assuming
+
+**Silent efficient**:
+- Zero unnecessary explanations
+- Summary tables instead of paragraphs
+- Only speaks when there's an error or decision required
+- Minimal output: "N changes in M files. Clean build."
+
+---
+
+## STEP 5: Structure and Phases
 
 ```
 AskUserQuestion:
-  question: "Cuantas fases deberia tener?"
-  header: "Fases"
+  question: "How should the command flow be structured?"
+  header: "Structure"
   options:
-    - label: "2 fases"
-      description: "Analisis + Ejecucion"
-    - label: "3 fases"
-      description: "Analisis + Ejecucion + Verificacion"
-    - label: "4+ fases"
-      description: "Describire las fases que necesito"
+    - label: "Sequential phases"
+      description: "Phase 1 -> Phase 2 -> Phase 3. Each phase completes before advancing. Example: /ux-polish (Audit -> Implementation -> Verification)"
+    - label: "Iterative rounds"
+      description: "Batches of N changes, build, report, ask whether to continue. Example: /css-to-tailwind"
+    - label: "Single pass"
+      description: "Execute everything from start to finish without intermediate pauses"
+    - label: "Continuous interactive"
+      description: "Ask the user at each key decision, like a wizard"
 ```
 
-### Seguimiento para rondas iterativas:
+### Follow-up for sequential phases:
 
 ```
 AskUserQuestion:
-  question: "Cuantos cambios por ronda?"
-  header: "Tamano ronda"
+  question: "How many phases should it have?"
+  header: "Phases"
   options:
-    - label: "5-8 cambios"
-      description: "Lotes pequenos, mas control"
-    - label: "8-12 cambios"
-      description: "Balance entre velocidad y control (recomendado)"
-    - label: "12-20 cambios"
-      description: "Lotes grandes, menos interrupciones"
-    - label: "Sin limite"
-      description: "Aplicar todo lo que encuentre de una vez"
+    - label: "2 phases"
+      description: "Analysis + Execution"
+    - label: "3 phases"
+      description: "Analysis + Execution + Verification"
+    - label: "4+ phases"
+      description: "I'll describe the phases I need"
+```
+
+### Follow-up for iterative rounds:
+
+```
+AskUserQuestion:
+  question: "How many changes per round?"
+  header: "Round size"
+  options:
+    - label: "5-8 changes"
+      description: "Small batches, more control"
+    - label: "8-12 changes"
+      description: "Balance between speed and control (recommended)"
+    - label: "12-20 changes"
+      description: "Large batches, fewer interruptions"
+    - label: "No limit"
+      description: "Apply everything found at once"
 ```
 
 ---
 
-## PASO 6: Argumentos del Comando
+## STEP 6: Command Arguments
 
 ```
 AskUserQuestion:
-  question: "El comando necesita argumentos del usuario al invocarlo?"
-  header: "Argumentos"
+  question: "Does the command need arguments from the user when invoked?"
+  header: "Arguments"
   options:
-    - label: "Si, un argumento libre"
-      description: "El usuario escribe texto libre despues del comando. Ejemplo: /ux-polish POS"
-    - label: "Si, argumentos con formato"
-      description: "El usuario pasa flags o parametros estructurados. Ejemplo: /deploy --env staging"
-    - label: "No, sin argumentos"
-      description: "El comando se ejecuta tal cual, sin input adicional. Ejemplo: /work"
-    - label: "Opcional"
-      description: "Funciona sin argumentos pero acepta uno para limitar scope"
+    - label: "Yes, a free argument"
+      description: "The user writes free text after the command. Example: /ux-polish POS"
+    - label: "Yes, formatted arguments"
+      description: "The user passes flags or structured parameters. Example: /deploy --env staging"
+    - label: "No, no arguments"
+      description: "The command runs as-is, no additional input. Example: /work"
+    - label: "Optional"
+      description: "Works without arguments but accepts one to limit scope"
 ```
 
-### Si tiene argumentos:
+### If it has arguments:
 
-Claude DEBE incluir en el archivo generado:
+Claude MUST include in the generated file:
 ```markdown
 ARGUMENTS: $ARGUMENTS
 ```
 
-Y referenciar `$ARGUMENTS` en las instrucciones donde se use el input del usuario.
+And reference `$ARGUMENTS` in the instructions where the user input is used.
 
 ---
 
-## PASO 7: Reglas y Restricciones
+## STEP 7: Rules and Constraints
 
 ```
 AskUserQuestion:
-  question: "Que restricciones criticas debe respetar el comando?"
-  header: "Reglas"
+  question: "What critical constraints must the command respect?"
+  header: "Rules"
   multiSelect: true
   options:
-    - label: "No cambiar logica de negocio"
-      description: "Solo cambios visuales, UX, cleanup — nunca tocar comportamiento funcional"
-    - label: "Verificar build despues"
-      description: "Correr dotnet build y/o npm run css:build para validar 0 errores"
-    - label: "Respetar design tokens"
-      description: "Usar variables CSS del design system, nunca hardcodear colores/sizes"
-    - label: "Pedir confirmacion antes de borrar"
-      description: "Nunca eliminar archivos o codigo sin confirmacion explicita del usuario"
+    - label: "Don't change business logic"
+      description: "Only visual changes, UX, cleanup — never touch functional behavior"
+    - label: "Verify build afterwards"
+      description: "Run the project's build command to validate 0 errors"
+    - label: "Respect design tokens"
+      description: "Use CSS design system variables, never hardcode colors/sizes"
+    - label: "Ask confirmation before deleting"
+      description: "Never delete files or code without explicit user confirmation"
 ```
 
-### Reglas adicionales que SIEMPRE se incluyen (no se preguntan):
+### Additional rules that are ALWAYS included (not asked):
 
-1. **DRY**: No repetir codigo de ningun tipo
-2. **.NET 10 moderno**: Collection expressions, file-scoped namespaces, primary constructors
-3. **Imports en _Imports.razor**: A menos que haya conflicto documentado
-4. **CRLF line endings**: Proyecto Windows
-5. **Sin emojis**: A menos que el usuario los pida explicitamente
-6. **Verificar antes de celebrar**: Nunca decir "listo" sin haber comprobado que funciona
+1. **DRY**: No code repetition of any kind
+2. **Modern language features**: Use the latest stable features of the detected stack
+3. **Follow project import conventions**: Detect from existing code and match
+4. **No emojis**: Unless the user explicitly requests them
+5. **Verify before celebrating**: Never say "done" without confirming it works
 
 ---
 
-## PASO 8: Ejemplos de Interaccion (para comandos con personalidad)
+## STEP 8: Interaction Examples (for commands with personality)
 
-Solo si el tono elegido en PASO 4 fue "Agresivo mexicano" o "Mentor paciente":
+Only if the tone chosen in STEP 4 was "Aggressive blunt" or "Patient mentor":
 
 ```
 AskUserQuestion:
-  question: "Quieres incluir ejemplos de como debe responder Claude cuando use este comando?"
-  header: "Ejemplos"
+  question: "Do you want to include examples of how Claude should respond when using this command?"
+  header: "Examples"
   options:
-    - label: "Si, generar ejemplos"
-      description: "Claude genera 3-4 ejemplos de interacciones tipicas basados en el tono elegido"
-    - label: "Si, yo doy ejemplos"
-      description: "Voy a escribir frases de ejemplo que Claude debe usar como referencia"
-    - label: "No, solo instrucciones"
-      description: "El tono se describe en las instrucciones, sin ejemplos explicitos"
+    - label: "Yes, generate examples"
+      description: "Claude generates 3-4 examples of typical interactions based on the chosen tone"
+    - label: "Yes, I'll provide examples"
+      description: "I'll write example phrases that Claude should use as reference"
+    - label: "No, just instructions"
+      description: "The tone is described in the instructions, without explicit examples"
 ```
 
-### Plantilla de ejemplos por tono:
+### Example templates per tone:
 
-**Agresivo mexicano**:
+**Aggressive blunt**:
 ```markdown
-## Ejemplos de Interacciones
-- **Ataque**: "Que chingadera es este archivo de 500 lineas? Ni un pinche componente separado. Lo voy a destrozar, jefe."
-- **Mejora**: [Codigo refactorizado con explicaciones]
-- **Autocritica**: "La cague con esa regex, pero ya lo arregle. Perdon jefe."
-- **Cuestionario**: "Este servicio inyecta 8 dependencias. Es un god object o hay razon? Dime y lo parto."
+## Interaction Examples
+- **Attack**: "What the hell is this 500-line file? Not a single component extracted. I'm going to tear this apart."
+- **Improvement**: [Refactored code with explanations]
+- **Self-criticism**: "I screwed up that regex, but it's fixed now. My bad."
+- **Questioning**: "This service injects 8 dependencies. Is it a god object or is there a reason? Tell me and I'll split it."
 ```
 
-**Mentor paciente**:
+**Patient mentor**:
 ```markdown
-## Ejemplos de Interacciones
-- **Explicacion**: "Voy a usar el patron Repository aqui porque nos permite cambiar la base de datos sin tocar la logica de negocio."
-- **Alternativa**: "Podemos resolver esto con un Mediator o con inyeccion directa. El Mediator agrega una capa pero da mas flexibilidad. Tu que prefieres?"
-- **Celebracion**: "Excelente — con este cambio el POS carga 40% mas rapido. Buen trabajo."
+## Interaction Examples
+- **Explanation**: "I'm going to use the Repository pattern here because it lets us change the database without touching business logic."
+- **Alternative**: "We can solve this with a Mediator or with direct injection. The Mediator adds a layer but gives more flexibility. What do you prefer?"
+- **Celebration**: "Excellent — with this change the page loads 40% faster. Good work."
 ```
 
 ---
 
-## GENERACION DEL ARCHIVO
+## FILE GENERATION
 
-Despues de completar TODAS las preguntas, Claude DEBE:
+After completing ALL questions, Claude MUST:
 
-### 1. Mostrar Preview
+### 1. Show Preview
 
-Presentar el contenido COMPLETO del archivo generado en un bloque de codigo:
+Present the COMPLETE content of the generated file in a code block:
 
 ```
-Aqui esta el comando generado. Revisa y dime si quieres ajustar algo antes de guardarlo:
+Here's the generated command. Review it and tell me if you want to adjust anything before saving:
 
-[contenido completo del .md]
+[complete .md content]
 ```
 
-### 2. Pedir Confirmacion
+### 2. Ask for Confirmation
 
 ```
 AskUserQuestion:
-  question: "El comando se ve bien? Lo guardo en .claude/commands/[nombre].md?"
-  header: "Confirmar"
+  question: "Does the command look good? Save it to .claude/commands/[name].md?"
+  header: "Confirm"
   options:
-    - label: "Guardar tal cual"
-      description: "Escribir el archivo y listo"
-    - label: "Ajustar algo"
-      description: "Quiero cambiar una parte antes de guardar"
-    - label: "Empezar de nuevo"
-      description: "Descartar y volver a hacer las preguntas desde el inicio"
+    - label: "Save as-is"
+      description: "Write the file and done"
+    - label: "Adjust something"
+      description: "I want to change a part before saving"
+    - label: "Start over"
+      description: "Discard and redo the questions from the beginning"
 ```
 
-### 3. Escribir Archivo
+### 3. Write File
 
-Usar la herramienta `Write` para crear/sobreescribir el archivo:
+Use the `Write` tool to create/overwrite the file:
 ```
-Write: .claude/commands/[nombre].md
+Write: .claude/commands/[name].md
 ```
 
-### 4. Verificar
+### 4. Verify
 
-Confirmar que el archivo existe y tiene el contenido correcto:
+Confirm that the file exists and has the correct content:
 ```bash
-wc -l .claude/commands/[nombre].md
-head -3 .claude/commands/[nombre].md
+wc -l .claude/commands/[name].md
+head -3 .claude/commands/[name].md
 ```
 
-Reportar: "Comando `/nombre` guardado — N lineas. Invocalo con `/nombre` en cualquier sesion."
+Report: "Command `/name` saved — N lines. Invoke it with `/name` in any session."
 
-### 5. Si es comando GLOBAL: Commit en profile repo
+### 5. If it's a GLOBAL command: Commit to profile repo
 
 ```bash
-cd ~/Documents/BernardUriza && git add -A && git commit -m "feat: add /nombre command" && git push
+cd ~/Documents/BernardUriza && git add -A && git commit -m "feat: add /name command" && git push
 ```
 
-Reportar: "Comando synced al profile repo. En otras maquinas, `cd ~/Documents/BernardUriza && git pull` para actualizar."
+Report: "Command synced to the profile repo. On other machines, `cd ~/Documents/BernardUriza && git pull` to update."
 
 ---
 
-## PLANTILLAS DE ESTRUCTURA
+## STRUCTURE TEMPLATES
 
-Segun el tipo de comando, usar estas plantillas como esqueleto:
+Based on the command type, use these templates as a skeleton:
 
-### Plantilla: Automatizacion de Codigo
+### Template: Code Automation
 
 ```markdown
-# /nombre - Descripcion corta
+# /name - Short description
 
 ARGUMENTS: $ARGUMENTS
 
-## Instrucciones
+## Instructions
 
-### Fase 1: Descubrimiento
+### Phase 1: Discovery
 
-1. Encontrar archivos relevantes usando Glob/Grep
-2. Leer archivos en lotes de 5-8 en paralelo
-3. Identificar patrones a modificar
+1. Find relevant files using Glob/Grep
+2. Read files in batches of 5-8 in parallel
+3. Identify patterns to modify
 
-### Fase 2: Ejecucion por Lotes
+### Phase 2: Batch Execution
 
-1. Aplicar cambios usando Edit tool
-2. Reportar resumen por lote
-3. Preguntar si continuar
+1. Apply changes using Edit tool
+2. Report summary per batch
+3. Ask whether to continue
 
-### Fase 3: Verificacion
+### Phase 3: Verification
 
 ```bash
-dotnet build && npm run css:build
+# Detect and run the project's build command (from package.json, Makefile, .csproj, etc.)
 ```
 
-## Reglas
+## Rules
 
-- [reglas del PASO 7]
+- [rules from STEP 7]
 
-## Tabla de [Conversiones/Patrones/etc.]
+## [Conversions/Patterns/etc.] Table
 
-| Antes | Despues |
-|-------|---------|
+| Before | After |
+|--------|-------|
 | ... | ... |
 ```
 
-### Plantilla: Auditoria / Revision
+### Template: Audit / Review
 
 ```markdown
-# /nombre - Descripcion corta
+# /name - Short description
 
 ARGUMENTS: $ARGUMENTS
 
-## Instrucciones
+## Instructions
 
-### Fase 1: Auditoria Exhaustiva (NO modificar nada todavia)
+### Phase 1: Exhaustive Audit (DO NOT modify anything yet)
 
-1. Encontrar TODOS los archivos del scope indicado
-2. Leer CADA archivo completo
-3. Clasificar hallazgos por severidad:
+1. Find ALL files in the specified scope
+2. Read EACH file completely
+3. Classify findings by severity:
 
-| Categoria | Ejemplo | Prioridad |
-|-----------|---------|-----------|
-| [critica] | ... | CRITICA |
-| [alta] | ... | ALTA |
-| [media] | ... | MEDIA |
-| [baja] | ... | BAJA |
+| Category | Example | Priority |
+|----------|---------|----------|
+| [critical] | ... | CRITICAL |
+| [high] | ... | HIGH |
+| [medium] | ... | MEDIUM |
+| [low] | ... | LOW |
 
-### Fase 2: Implementar por Rondas
+### Phase 2: Implement in Rounds
 
-Rondas de ~N cambios. Cada ronda:
-1. Lista cambios ANTES de aplicar
-2. Aplica cambios
+Rounds of ~N changes. Each round:
+1. List changes BEFORE applying
+2. Apply changes
 3. Build verify
-4. Reportar resumen
+4. Report summary
 
-### Fase 3: Siguiente Ronda
+### Phase 3: Next Round
 
-Preguntar: "Ronda N completada — X cambios, build limpio. Sigo?"
+Ask: "Round N completed — X changes, clean build. Continue?"
 
-## Reglas
+## Rules
 
-- [reglas del PASO 7]
+- [rules from STEP 7]
 
-## Checklist por Tipo de Archivo
+## Checklist per File Type
 
-**[tipo1]:**
+**[type1]:**
 - [ ] ...
 - [ ] ...
 
-**[tipo2]:**
+**[type2]:**
 - [ ] ...
 ```
 
-### Plantilla: Personalidad / Modo
+### Template: Personality / Mode
 
 ```markdown
-# Titulo descriptivo
+# Descriptive Title
 
-## Introduccion
+## Introduction
 
-Descripcion del rol y personalidad que Claude debe adoptar.
+Description of the role and personality that Claude should adopt.
 
-## Rol y Personalidad
+## Role and Personality
 
-- **[rasgo 1]**: Descripcion
-- **[rasgo 2]**: Descripcion
-- **[rasgo 3]**: Descripcion
+- **[trait 1]**: Description
+- **[trait 2]**: Description
+- **[trait 3]**: Description
 
-## Comportamiento
+## Behavior
 
-### Fases Principales
+### Main Phases
 
-1. **[fase 1]**: Que hace Claude primero
-2. **[fase 2]**: Que hace Claude despues
+1. **[phase 1]**: What Claude does first
+2. **[phase 2]**: What Claude does next
 
-### Reglas Clave
+### Key Rules
 
-- **Idioma**: ...
-- **Tono**: ...
-- **Restricciones**: ...
+- **Language**: ...
+- **Tone**: ...
+- **Constraints**: ...
 
-## Ejemplos de Interacciones
+## Interaction Examples
 
-- **[tipo1]**: "Ejemplo de respuesta"
-- **[tipo2]**: "Ejemplo de respuesta"
-- **[tipo3]**: "Ejemplo de respuesta"
+- **[type1]**: "Example response"
+- **[type2]**: "Example response"
+- **[type3]**: "Example response"
 ```
 
-### Plantilla: Workflow / Proceso
+### Template: Workflow / Process
 
 ```markdown
-# /nombre - Descripcion corta
+# /name - Short description
 
-## Contexto
+## Context
 
-Descripcion del flujo de trabajo y cuando usarlo.
+Description of the workflow and when to use it.
 
-## Formato Operativo
+## Operational Format
 
-### Inicio
+### Start
 
-1. Verificar estado (git status, procesos, etc.)
-2. Pregunta inicial al usuario
+1. Verify state (git status, processes, etc.)
+2. Initial question to the user
 
-### Durante la Sesion
+### During the Session
 
-1. Enfoque en tarea actual
-2. Retroalimentacion continua
-3. Documentar decisiones
+1. Focus on current task
+2. Continuous feedback
+3. Document decisions
 
-### Cierre
+### Closing
 
-1. Resumen de lo logrado
-2. Tareas pendientes
-3. Siguiente paso sugerido
+1. Summary of what was accomplished
+2. Pending tasks
+3. Suggested next step
 
-## Conexion con la Mision VHouse
+## Connection to the Project Mission
 
-- Como esto ayuda a los animales
-- Como esto ayuda a los clientes reales
+- How this helps the end users
+- How this helps real clients
 ```
 
 ---
 
-## REGLAS DE CALIDAD PARA COMANDOS GENERADOS
+## QUALITY RULES FOR GENERATED COMMANDS
 
-### Minimos obligatorios:
+### Mandatory minimums:
 
-| Criterio | Minimo | Ideal |
-|----------|--------|-------|
-| Lineas de codigo (LOC) | 50 | 100+ |
-| Secciones con `##` | 3 | 5+ |
-| Reglas/restricciones | 3 | 6+ |
-| Ejemplos (si aplica) | 2 | 4+ |
+| Criterion | Minimum | Ideal |
+|-----------|---------|-------|
+| Lines of code (LOC) | 50 | 100+ |
+| Sections with `##` | 3 | 5+ |
+| Rules/constraints | 3 | 6+ |
+| Examples (if applicable) | 2 | 4+ |
 
-### Estructura obligatoria:
+### Mandatory structure:
 
-Todo comando DEBE tener estas secciones (en orden):
+Every command MUST have these sections (in order):
 
-1. **Titulo** — `# /nombre - Descripcion` (linea 1)
-2. **Argumentos** — `ARGUMENTS: $ARGUMENTS` (si aplica, linea 3)
-3. **Instrucciones** — `## Instrucciones` (el corazon del comando)
-4. **Reglas** — `## Reglas` o `## Reglas Estrictas` (restricciones)
+1. **Title** — `# /name - Description` (line 1)
+2. **Arguments** — `ARGUMENTS: $ARGUMENTS` (if applicable, line 3)
+3. **Instructions** — `## Instructions` (the heart of the command)
+4. **Rules** — `## Rules` or `## Strict Rules` (constraints)
 
-Secciones opcionales pero recomendadas:
+Optional but recommended sections:
 
-5. **Contexto** — Por que existe este comando
-6. **Ejemplos** — Como se ve en accion
-7. **Checklist** — Verificaciones por tipo de archivo
-8. **Tablas de referencia** — Mappings, conversiones, etc.
+5. **Context** — Why this command exists
+6. **Examples** — What it looks like in action
+7. **Checklist** — Verifications per file type
+8. **Reference tables** — Mappings, conversions, etc.
 
-### Anti-patterns en comandos:
+### Anti-patterns in commands:
 
-| Anti-pattern | Problema | Solucion |
-|--------------|----------|----------|
-| Instrucciones vagas | "Mejora el codigo" — que significa eso? | Especificar: "Convierte `new List<>()` a `[]`" |
-| Sin reglas | Claude improvisa y puede romper cosas | Minimo 3 reglas explicitas |
-| Sin verificacion | No se sabe si funciono | Incluir paso de build/test |
-| Monolitico | Un bloque de texto sin estructura | Dividir en Fases/Pasos con headers |
-| Sin ejemplos (para tonos) | Claude interpreta mal la personalidad | Minimo 3 ejemplos de interaccion |
-| Reglas contradictorias | "Nunca cambiar logica" + "Refactorizar todo" | Revisar coherencia antes de guardar |
+| Anti-pattern | Problem | Solution |
+|--------------|---------|----------|
+| Vague instructions | "Improve the code" — what does that mean? | Specify: "Convert `new List<>()` to `[]`" |
+| No rules | Claude improvises and can break things | Minimum 3 explicit rules |
+| No verification | No way to know if it worked | Include a build/test step |
+| Monolithic | One block of text without structure | Split into Phases/Steps with headers |
+| No examples (for tones) | Claude misinterprets the personality | Minimum 3 interaction examples |
+| Contradictory rules | "Never change logic" + "Refactor everything" | Review coherence before saving |
 
 ---
 
-## FLUJO PARA MODIFICACION DE COMANDOS EXISTENTES
+## FLOW FOR MODIFYING EXISTING COMMANDS
 
-Cuando el usuario elige "Modificar existente":
+When the user chooses "Modify existing":
 
-### 1. Leer comando completo
+### 1. Read complete command
 
 ```bash
-cat .claude/commands/[nombre].md
+cat .claude/commands/[name].md
 ```
 
-### 2. Mostrar resumen
+### 2. Show summary
 
-"El comando `/nombre` tiene N lineas con estas secciones: [lista]. Que quieres cambiar?"
+"The command `/name` has N lines with these sections: [list]. What do you want to change?"
 
-### 3. Preguntar que modificar
+### 3. Ask what to modify
 
 ```
 AskUserQuestion:
-  question: "Que aspecto del comando quieres modificar?"
-  header: "Modificar"
+  question: "What aspect of the command do you want to modify?"
+  header: "Modify"
   multiSelect: true
   options:
-    - label: "Agregar nueva fase/seccion"
-      description: "Insertar un paso o seccion que no existe"
-    - label: "Cambiar tono/personalidad"
-      description: "Ajustar como responde Claude cuando usa este comando"
-    - label: "Agregar/cambiar reglas"
-      description: "Modificar las restricciones y validaciones"
-    - label: "Expandir contenido"
-      description: "Hacer el comando mas detallado, agregar tablas, checklists, ejemplos"
+    - label: "Add new phase/section"
+      description: "Insert a step or section that doesn't exist"
+    - label: "Change tone/personality"
+      description: "Adjust how Claude responds when using this command"
+    - label: "Add/change rules"
+      description: "Modify the constraints and validations"
+    - label: "Expand content"
+      description: "Make the command more detailed, add tables, checklists, examples"
 ```
 
-### 4. Iterar con preguntas especificas
+### 4. Iterate with specific questions
 
-Segun lo seleccionado, hacer preguntas de seguimiento para cada area a modificar.
+Based on what was selected, ask follow-up questions for each area to modify.
 
-### 5. Aplicar cambios
+### 5. Apply changes
 
-Usar `Edit` tool para modificaciones quirurgicas (no reescribir todo el archivo).
-Si los cambios son mayores al 50% del archivo, usar `Write` para reescritura completa.
+Use `Edit` tool for surgical modifications (don't rewrite the entire file).
+If changes exceed 50% of the file, use `Write` for a complete rewrite.
 
-### 6. Verificar
+### 6. Verify
 
-Mostrar diff o contenido final al usuario antes de confirmar.
-
----
-
-## METRICAS DE COMANDOS EXISTENTES (referencia)
-
-| Comando | LOC | Secciones | Reglas | Tiene Args | Tono |
-|---------|-----|-----------|--------|------------|------|
-| /work | 75 | 6 | 3 | No | Profesional |
-| /ux-polish | 83 | 7 | 12 | Si ($ARGUMENTS) | Silencioso |
-| /insult | 93 | 8 | 6 | Si ($ARGUMENTS) | Agresivo MX |
-| /css-to-tailwind | 187 | 12 | 7 | No | Silencioso |
-
-Esta tabla se actualiza DINAMICAMENTE al ejecutar el PASO 0.
+Show diff or final content to the user before confirming.
 
 ---
 
-## NOTAS FINALES
+## EXISTING COMMANDS METRICS (reference)
 
-### Iteracion rapida
+| Command | LOC | Sections | Rules | Has Args | Tone |
+|---------|-----|----------|-------|----------|------|
+| /work | 75 | 6 | 3 | No | Professional |
+| /ux-polish | 83 | 7 | 12 | Yes ($ARGUMENTS) | Silent |
+| /insult | 93 | 8 | 6 | Yes ($ARGUMENTS) | Aggressive |
+| /css-to-tailwind | 187 | 12 | 7 | No | Silent |
 
-Si el usuario no esta satisfecho con el resultado, ofrecer:
-1. "Quieres ajustar solo una seccion?"
-2. "Quieres cambiar el tono completamente?"
-3. "Quieres agregar mas reglas?"
-
-Cada ajuste es una ronda de `AskUserQuestion` + `Edit`.
-
-### Consistencia con el ecosistema
-
-Todo comando generado DEBE:
-- Respetar las reglas de `.claude/rules/` (DRY, .NET 10, imports, etc.)
-- Conectar con la mision VHouse ("Como esto ayuda a los animales?")
-- Ser invocable inmediatamente despues de crearlo (sin setup adicional)
-- Usar `AskUserQuestion` en vez de preguntas en texto plano cuando hay opciones claras
-
-### Sobre el tamanho
-
-- Comandos cortos (<50 LOC) son sospechosos — probablemente les falta detalle
-- Comandos largos (>300 LOC) son normales si tienen tablas de referencia (como /css-to-tailwind)
-- La longitud debe ser proporcional a la complejidad del comportamiento deseado
-- Nunca inflar artificialmente — cada linea debe aportar valor
+This table is updated DYNAMICALLY when executing STEP 0.
 
 ---
 
-_Documentado: 2026-03-07 | Meta-comando para gobernarlos a todos_
+## FINAL NOTES
+
+### Rapid iteration
+
+If the user isn't satisfied with the result, offer:
+1. "Want to adjust just one section?"
+2. "Want to change the tone completely?"
+3. "Want to add more rules?"
+
+Each adjustment is a round of `AskUserQuestion` + `Edit`.
+
+### Consistency with the ecosystem
+
+Every generated command MUST:
+- Respect the rules from `.claude/rules/` (DRY, modern language features, imports, etc.)
+- Connect to the project's mission ("How does this help the end users?")
+- Be invocable immediately after creation (no additional setup)
+- Use `AskUserQuestion` instead of plain text questions when there are clear options
+
+### About size
+
+- Short commands (<50 LOC) are suspicious — they're probably missing detail
+- Long commands (>300 LOC) are normal if they have reference tables (like /css-to-tailwind)
+- Length should be proportional to the complexity of the desired behavior
+- Never artificially inflate — every line must add value
+
+---
+
+_Documented: 2026-03-07 | The meta-command to rule them all_

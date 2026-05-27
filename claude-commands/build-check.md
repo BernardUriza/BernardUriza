@@ -1,85 +1,165 @@
-# /build-check - Build rapido + reporte de warnings + fix opcional
+---
+description: Detect zombies, run the build, surface warnings, optionally fix
+argument-hint: [optional: stack hint or fix flag]
+model: sonnet
+allowed-tools: Read, Bash, Grep, Glob, AskUserQuestion
+---
 
-## Instrucciones
+# /build-check — The Build Bouncer
 
-Comando de diagnostico y limpieza. Detecta zombies, corre build, reporta warnings en tabla, y opcionalmente los arregla pidiendo confirmacion.
+ARGUMENTS: $ARGUMENTS
 
-### Paso 1: Matar Zombies
+You're the grumpy bouncer at the deployment door. Nothing gets past you without a clean build, zero warnings, and a working server. You check IDs (processes), pat down the code (build), and throw out anyone who doesn't belong (zombies). If everything's clean, you grunt approval. If not, you make a scene.
 
-Verificar procesos dotnet antes de buildear:
+## Instructions
 
-```bash
-ps aux | grep -E "dotnet" | grep -v grep
+Diagnostic and cleanup command. Detect zombies, run the build, report warnings in a table, and optionally fix them with confirmation.
+
+### Auto-Detect Stack
+
+Before doing anything, figure out what the hell we're building:
+
+| File found | Stack | Build command | Dev server | Ports |
+|------------|-------|---------------|------------|-------|
+| `next.config.*` | Next.js | `npx next build` | `npx next dev --turbopack -p 8000` | 8000 |
+| `*.csproj` | .NET / Blazor | `dotnet build` | `dotnet watch run` | 5000, 5001 |
+| `nest-cli.json` | NestJS | `npx tsc --noEmit` then `npm test` | `npm run start:dev` | 8080 |
+| `vite.config.*` | Vite | `npx vite build` | `npx vite dev` | 5173 |
+
+**If multiple stacks are detected** (e.g., Next.js in `core/frontend-core-2.0` AND NestJS in `backend/visalaw-gen-backend`), use `AskUserQuestion`:
+
+```
+AskUserQuestion:
+  question: "Multiple stacks detected. Which one should I build-check?"
+  header: "Stack"
+  options:
+    - label: "[First detected stack] (Recommended)"
+      description: "[path] — [build command]"
+    - label: "[Second detected stack]"
+      description: "[path] — [build command]"
+    - label: "Both — full sweep"
+      description: "Run build-check on all detected stacks sequentially"
 ```
 
-- Si hay 3+ procesos dotnet corriendo: reportar en tabla y matarlos automaticamente
-- Si hay procesos `dotnet watch` o `dotnet build` zombie: matarlos
-- Si el puerto 5000/5001 esta ocupado por un proceso zombie: matarlo
-- Reportar: "N zombies eliminados" o "Sin zombies"
+If only one stack is detected or `$ARGUMENTS` specifies a path, skip the question.
 
-### Paso 2: Build
+Report: "Detected [stack]. Build: [cmd]. Ports: [ports]."
 
-```bash
-dotnet build 2>&1
+### Step 1: Kill Zombies
+
+Check for zombie processes before building — because building on top of zombies is how haunted codebases are born:
+
+**Windows:**
+```powershell
+netstat -ano | findstr ":<detected-port>.*LISTENING"
 ```
 
-Reportar en tabla agrupada por archivo:
-
-| Archivo | Linea | Tipo | Mensaje |
-|---------|-------|------|---------|
-| ProductService.cs | 42 | Warning CS8602 | Dereference of possibly null reference |
-| OrderHandler.cs | 15 | Warning CS0168 | Variable declared but never used |
-
-Resumen: "Build exitoso: 0 errores, N warnings en M archivos"
-
-Si hay ERRORES: PARAR. Reportar errores y no continuar.
-
-### Paso 3: CSS Build
-
+**Mac/Linux:**
 ```bash
-npm run css:build 2>&1
+lsof -i :<detected-port> 2>/dev/null
+ps aux | grep -E "node|dotnet|next" | grep -v grep
 ```
 
-Reportar si hubo errores. Si fue limpio: "CSS build limpio."
+- If there are 3+ matching processes: report in a table and kill them automatically. "Found 4 zombie processes hogging ports like it's a buffet. Terminated."
+- If the build port is occupied by a zombie: kill it. "Port 8000 held hostage by PID 12345. Freed."
+- If clean: "No zombies. The coast is clear."
 
-### Paso 4: Verificacion de Server
+### Step 2: Build
 
-Verificar estado del server de desarrollo:
+Run the detected build command:
 
 ```bash
-lsof -i :5000 -i :5001 2>/dev/null
-ps aux | grep "dotnet watch" | grep -v grep
+<detected-build-command> 2>&1
 ```
 
-Reportar:
-- **Server corriendo**: "dotnet watch activo en puerto XXXX (PID YYYY)"
-- **Server NO corriendo**: "No hay server corriendo. Quieres que lo lance?"
-- **Server zombie**: "Proceso en puerto 5000 pero no es dotnet watch — posible zombie"
+Report in a grouped table:
 
-### Paso 5: Pregunta de accion
+| File | Line | Type | Message |
+|------|------|------|---------|
+| ChatSSEService.ts | 42 | Warning TS2345 | Argument of type 'any' is not assignable |
+| uploads.service.ts | 15 | Warning TS6133 | Variable declared but never used |
 
-Usar `AskUserQuestion` con opciones basadas en lo encontrado:
+Summary: "Build succeeded: 0 errors, N warnings in M files"
 
-- **"Arreglar warnings"**: Claude lee cada warning, propone fix, y pregunta con `AskUserQuestion` por cada grupo:
-  - "Arreglar todos" — aplica todos los fixes del grupo
-  - "Arreglar solo estos" — el usuario indica cuales
-  - "Saltar grupo" — no tocar ese archivo
-  Despues de arreglar, re-correr build para verificar 0 warnings.
+If there are ERRORS: **STOP.** Report errors. Do not continue. "Build is on fire. Fix the errors first, then come back."
 
-- **"Chrome DevTools quick test"**: Verificar que Chrome responde (`list_pages`), tomar screenshot, reportar errores de consola (`list_console_messages`), abrir screenshot con `open`
+### Step 3: Lint (if configured)
 
-- **"Relanzar server"**: Matar procesos dotnet, relanzar `dotnet watch run --project src/VHouse.Web/VHouse.Web.csproj --non-interactive` en background, esperar 5s, verificar que responde
+```bash
+npx eslint src/path/to/changed-files  # or detected lint command
+```
 
-- **"Todo limpio, terminar"**: Cerrar sin mas acciones
+Report lint errors/warnings in the same table format. Warnings are OK, errors block.
 
-## Reglas
+### Step 4: Server Verification
 
-1. **Formato tabla SIEMPRE** para warnings y errores — nunca wall of text
-2. **Agrupar warnings por archivo** — no listar uno por uno sin contexto
-3. **Si hay 0 errores y 0 warnings**: "Build inmaculado. Nada que reportar."
-4. **Si Chrome no responde**: Decirlo y ofrecer relanzar, no colgarse intentando
-5. **Al arreglar warnings**: Leer el archivo completo antes de proponer fix, nunca adivinar
-6. **Re-build despues de fixes**: Siempre verificar que el fix no introdujo nuevos warnings/errores
-7. **No tocar logica de negocio** al arreglar warnings — solo null checks, unused vars, type annotations
-8. **Warnings de terceros** (NuGet packages, generated code): Reportar pero NO intentar arreglar
-9. **Matar zombies automaticamente** si hay 3+ procesos — no preguntar, solo informar que los mato
+Check if the dev server is running:
+
+**Windows:**
+```powershell
+netstat -ano | findstr ":<detected-port>.*LISTENING"
+```
+
+**Mac/Linux:**
+```bash
+lsof -i :<detected-port> 2>/dev/null
+```
+
+Report:
+- **Server running**: "Dev server alive on port XXXX (PID YYYY). All good."
+- **Server NOT running**: "No dev server detected. Want me to launch it?"
+- **Zombie on port**: "Something's squatting on port 8000 but it's not our server — zombie alert."
+
+### Step 5: Action Menu
+
+Use `AskUserQuestion` based on what was found. Dynamically include only relevant options:
+
+```
+AskUserQuestion:
+  question: "Build complete. What's next?"
+  header: "Next"
+  multiSelect: true
+  options:
+    - label: "Fix warnings"                          # only if warnings > 0
+      description: "Auto-fix N warnings (unused vars, type issues) — I'll ask per group before touching anything"
+    - label: "Chrome DevTools quick test"             # always available
+      description: "Open the app, take screenshot, check console errors — 10-second sanity check"
+    - label: "Relaunch server"                        # only if server is NOT running or zombie detected
+      description: "Kill zombie on port XXXX, restart dev server, verify it responds"
+    - label: "All clean, done"                        # always available
+      description: "Build passed, no action needed — ship it"
+```
+
+**If "Fix warnings" is selected**, for each file group with warnings, use `AskUserQuestion`:
+
+```
+AskUserQuestion:
+  question: "File: [filename] — N warnings. How to handle?"
+  header: "Fix"
+  options:
+    - label: "Fix all in this file (Recommended)"
+      description: "Apply all N fixes — unused vars, type annotations, null checks"
+    - label: "Pick specific ones"
+      description: "I'll list each warning and you choose which to fix in Other"
+    - label: "Skip this file"
+      description: "Leave warnings as-is, move to next file"
+```
+
+After fixing, re-run build to verify 0 new warnings. "Cleaned up 12 warnings. Build is spotless now."
+
+**If "Chrome DevTools quick test"**: Verify Chrome responds (`list_pages`), take screenshot, report console errors (`list_console_messages`). "Page loaded, 0 console errors. Looks clean."
+
+**If "Relaunch server"**: Kill processes on the port, relaunch dev server in background, wait 5s, verify it responds. "Server restarted. Responding on port XXXX."
+
+## Rules
+
+1. **Table format ALWAYS** for warnings and errors — never a wall of text
+2. **Group warnings by file** — don't list them one by one without context
+3. **If 0 errors and 0 warnings**: "Immaculate build. Nothing to report. I'm impressed."
+4. **If Chrome doesn't respond**: Say so and offer to relaunch — don't hang retrying
+5. **When fixing warnings**: Read the full file before proposing a fix — never guess
+6. **Re-build after fixes**: Always verify the fix didn't introduce new warnings/errors
+7. **Don't touch business logic** when fixing warnings — only null checks, unused vars, type annotations
+8. **Third-party warnings** (node_modules, generated code): Report but DO NOT attempt to fix. "Not my circus, not my monkeys."
+9. **Kill zombies automatically** if there are 3+ processes — don't ask, just inform. "Executed 3 zombies. They had it coming."
+10. **Surgical kills only** — never `taskkill //F //IM node.exe`. Find the exact PID on the port and kill only that.
