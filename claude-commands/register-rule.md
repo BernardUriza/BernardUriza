@@ -1,30 +1,86 @@
 # Register Custom Rule
 
-This command handles TWO types of input — detect which one automatically:
+This command handles several kinds of input — **detect which one FIRST**, before doing anything else:
+
+1. A **roadmap / backlog item** (a feature, a vision, a proposal not yet built) → Type 0
+2. A behavioral **rule / guideline** (how the agent should act) → Type 1
+3. A **secret / credential** → Type 2
+4. Shared **documentation / findings** → Type 3
+
+The most common mis-file is sending a roadmap idea through the rule path. Run the Type 0 check BEFORE Type 1.
+
+## Type 0: Roadmap / Backlog items (features, visions, proposals)
+
+When the user is **capturing something to build later** — a feature, a product
+vision, a stakeholder proposal — it is a **backlog item, NOT a rule**. A rule
+tells the agent how to *act*; a backlog item records *something to build*. Do not
+file it under `.claude/rules/`.
+
+### Detect Type 0 (check these first)
+
+- A capability that **doesn't exist yet**: "I want to give them X", "build an
+  assistant that…", "a CMS so they can…".
+- A **vision / roadmap direction**: "my vision for this project is…".
+- A **proposal**: "Miguel suggested…", "someone proposed…".
+- **Desiderative / future tense**: *quisiera, me gustaría, sería bueno, algún día,
+  deberíamos, podríamos*.
+
+If it's a behavior ("always/never do X", a correction of how you worked) → it's a
+rule (Type 1), not backlog.
+
+### Route it
+
+Backlog is **per-repo**: write to **`./.claude/backlog/<slug>.md`** in the
+current repo and add a one-line entry to `./.claude/backlog/README.md` (create
+the folder + index if absent). Governed by the universal
+`backlog-handling.md` rule (in `engineering-playbook`, delivered via the
+`~/.claude/rules/playbook` symlink) — read it for the item shape:
+
+```markdown
+# <Title>
+
+Status: Proposed | Accepted | In progress | Done | Dropped
+Proposed: <YYYY-MM-DD> by <who>
+
+## What it is
+## Canonical path to reuse (Art. 6)
+## The decision that's the owner's
+## Status / next step
+```
+
+If the proposal ALSO encodes a hard prohibition, file the backlog item here AND
+register the prohibition separately as a Type 1 rule; link them, don't merge.
 
 ## Type 1: Rules & Guidelines
 
-When the user provides a new rule or guideline for working with this codebase:
+When the user provides a new rule or guideline, the **FIRST decision is which LEVEL it belongs to** — NEVER write flat to the current repo's `.claude/rules/`. That flat-write is the exact bug that scattered Bernard's rules across 35+ repos. Route by level:
 
-1. Extract the rule content from the user's message
-2. Determine the appropriate rule file in `.claude/rules/` based on the rule's domain (e.g., `testing.md`, `security.md`, `git.md`)
-3. If the rule fits an existing file, append or update it
-4. If the rule is entirely new category, create a new file following the naming convention
-5. Update the index section in `CLAUDE.md` if a new category is added
-6. Never create duplicate rules across files — consolidate related rules in the appropriate location
+### Step 1 — Classify the level
 
-**Language**: All rules must be written in English, regardless of the input language.
+| Level | Destination | When |
+|-------|-------------|------|
+| **Technical-universal** | `~/Documents/engineering-playbook/rules/<name>.md` | Employer/project-agnostic engineering methodology: how you build, test, refactor, log, review, lay out UI, handle git, communicate. Applies to ANY repo, language, or employer. |
+| **Personal / OE** | `~/Documents/SerenityOps/.claude/rules/<name>.md` | Overemployment doctrine, identity layers, finances, job-search, CV, recruiters, crypto — anything sensitive that must NEVER load in an employer's repo. |
+| **Repo-specific** | `./.claude/rules/<name>.md` (current repo only) | Tied to THIS project: its architecture, its deploy, its particular stack, its file conventions. |
 
-**File patterns & saving rules**: When creating or updating rule files under `.claude/rules/`, follow the repository's existing conventions:
+### Step 2 — Auto-detect; ask only if genuinely ambiguous
 
-- Use lowercase, descriptive filenames with a `.md` extension (e.g., `testing.md`, `security.md`).
-- Place the file in the `.claude/rules/` directory.
-- If updating an existing file, append new content under a clear header and keep the file organized by sections; preserve existing formatting and style.
-- If creating a new category, add the new filename and a one-line description to the index section in `CLAUDE.md`.
-- Avoid duplicate or overlapping rules: check existing files for related content before adding new rules.
-- Keep all rule text in English and match the tone and structure used across other `.claude/rules/*.md` files.
+Signals:
+- **Technical-universal**: "always do X in any project", TDD / refactor / git / logging / naming / CSS / debugging / standup / demo workflow — names no company and no repo.
+- **Personal / OE**: mentions employers, OE, CV, LinkedIn, finances, crypto, identity, job search, recruiters.
+- **Repo-specific**: names this repo, its specific stack, its deploy, or concrete files in this project.
 
-Follow these patterns to maintain consistency across the codebase and make rules discoverable by other contributors.
+If you can't tell, ask exactly one question: "¿Esta regla es (a) metodología general para todos tus repos, (b) algo personal/OE, o (c) específica de este proyecto?"
+
+### Step 3 — Write and propagate
+
+- **Technical-universal** → write to `~/Documents/engineering-playbook/rules/`, add a one-line entry to that repo's `README.md` index, then `git -C ~/Documents/engineering-playbook add -A && git -C ~/Documents/engineering-playbook commit && git -C ~/Documents/engineering-playbook push` (if offline, commit locally and report the pending push). It reaches every repo via the `~/.claude/rules/playbook` symlink — **no per-repo copy**.
+- **Personal / OE** → write to `~/Documents/SerenityOps/.claude/rules/`. Do NOT symlink to user-level — it must never load in employer repos.
+- **Repo-specific** → write to the current repo's `.claude/rules/` and update its `CLAUDE.md` index if it's a new category.
+
+**Language by destination**: engineering-playbook → **English** (employer-agnostic, professional). SerenityOps personal/OE → **español** (match the existing OE rules). Repo-specific → match that repo's convention.
+
+**Before writing, ALWAYS** check the destination for an existing file on the same topic and append there instead of creating a new one. The entire point of this routing is to STOP duplication — creating a new file when a sibling already covers the topic re-introduces the exact bug we are killing.
 
 ## Type 2: Secrets, Tokens, Passwords & Credentials
 
@@ -64,11 +120,12 @@ When the user provides a token, password, API key, or any credential:
 | `PLANE_PAT=*` | Plane personal API key | `~/.secrets/plane_pat.txt` |
 | Any string the user explicitly calls a token/key/password/secret | Generic secret | `~/.secrets/<context>.txt` |
 
-### How to distinguish Type 1 vs Type 2:
+### How to distinguish Type 0 vs Type 1 vs Type 2:
 
+- If the input describes a **feature/vision/proposal to build later** (something that doesn't exist yet, desiderative tense) → **Type 0 (backlog)**
 - If the input contains a token pattern (above) or the user says "token", "key", "password", "secret", "credential" → **Type 2**
-- If the input describes a behavior, convention, or workflow rule → **Type 1**
-- If ambiguous, ask: "Is this a secret/credential to store securely, or a rule for the codebase?"
+- If the input describes a **behavior** the agent should follow ("always/never do X") → **Type 1**
+- If ambiguous between backlog and rule, prefer **Type 0** and link any embedded prohibition out to a Type 1 rule.
 
 ## Type 3: Documentation & Technical Findings
 
@@ -135,10 +192,5 @@ On 2026-04-02, Ram shared a 68K-chunk Pinecone migration script as a Slack attac
 
 ## After registering a rule (Type 1 only)
 
-If the rule was written to a **shared** file (one that also exists in `.github-org/ai-rules/rules/shared/`), offer to sync:
-
-Shared files: `security.md`, `multi-tenancy.md`, `data-privacy.md`, `code-quality.md`, `styling.md`, `git.md`, `language.md`, `data-ref.md`, `issue-workflow.md`
-
-Ask: "This rule is in a shared file. Run `/sync-rules` to push it to the AI reviewer?"
-- If yes → invoke `/sync-rules`
-- If no → remind: "Run `/sync-rules` later to keep the AI reviewer in sync."
+- **Technical-universal** rules are already propagated the moment you push `engineering-playbook` — the `~/.claude/rules/playbook` symlink delivers them to every repo at next session start. No further sync step.
+- The legacy `/sync-rules` → AI-reviewer flow (pushing to `.github-org/ai-rules/rules/shared/`) is **deprecated** and slated for removal in the cleanup phase (it was part of the old per-repo `sync-rules` system being retired). Do NOT invoke `/sync-rules` for newly routed rules.
