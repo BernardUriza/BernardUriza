@@ -6,355 +6,150 @@ ARGUMENTS: $ARGUMENTS
 
 Execute iterative rounds of UX/pattern refactoring on the area the user specifies: **$ARGUMENTS**
 
-The primary focus is **detecting structural anti-patterns** and replacing them with the system's shared components/utilities. Cosmetic visual improvements are secondary.
+The primary focus is **detecting structural anti-patterns** and replacing them with **the canonical patterns this project already uses** — never with patterns from another project. Cosmetic visual improvements are secondary.
 
-### Stack Auto-Detection
-
-Before starting, detect the current project's stack:
-
-1. If `next.config.*` or `package.json` with `next` exists → **React/TS/Next.js** (use React section)
-2. If `*.sln` or `*.csproj` exists → **Blazor/.NET** (use Blazor section)
-3. If both exist → ask the user which stack applies
+This command is **stack-agnostic**: it does not assume any framework, component library, import alias, design-token scheme, or build command. It **discovers** them from the repository in Phase 0 and enforces what it finds. If the project has no canonical primitive for a given concern, you propose extracting one — you never invent a name from another codebase.
 
 ---
 
-## Stack: React / TypeScript / Next.js
+## Phase 0: Discover the Project's Conventions (NEVER skip)
 
-### Phase 1: Exhaustive Audit (DO NOT modify anything yet)
+Before auditing a single file, learn how THIS repo works. Read, don't assume. Record each finding — every later phase references it.
 
-1. **Find ALL files** for the indicated feature/page:
-   - `.tsx` / `.ts` components and hooks
-   - `.css` stylesheets in `src/app/styles/`
-   - Shared utilities in `~/core/utils/`, `~/core/ui/`, `~/core/hooks/`
-   - Related types and constants
+1. **Stack & language** — inspect manifests: `package.json`, `*.csproj`/`*.sln`, `pyproject.toml`/`requirements.txt`, `go.mod`, `Cargo.toml`, `pubspec.yaml`, `composer.json`, `Gemfile`, etc. Identify the UI framework from dependencies (Next/React, Vue, Svelte, Angular, Blazor, SwiftUI, Flutter, …). If multiple UI surfaces exist, scope to the one `$ARGUMENTS` lives in.
+
+2. **Verify command** — derive the real build/typecheck/lint commands from the repo, do NOT hardcode:
+   - JS/TS: `package.json` `scripts` (`build`, `typecheck`/`tsc`, `lint`). Prefer the project's script over a raw tool call.
+   - .NET: `dotnet build`. Python: the configured `ruff`/`mypy`/`pytest`. Make-based: `make build`/`make check`. Etc.
+   - If a script exists, call it through the project's package manager (`npm`/`pnpm`/`yarn`/`bun` — detect from the lockfile).
+
+3. **Import alias** — read `tsconfig.json`/`jsconfig.json` `paths`, bundler config, or language equivalent. Use the alias the repo actually uses (`~/`, `@/`, `src/…`, a Go module path, a .NET namespace). Never impose an alias from another project.
+
+4. **Canonical component library** — find where shared/design-system primitives live (e.g. `components/ui/`, `core/ui/`, a published package, a Razor component folder). List the form, modal, button, and selection primitives that already exist. These — and only these — are the migration targets.
+
+5. **Design tokens** — find the token source: Tailwind `theme`/`@theme`, CSS custom properties, a `tokens.*`/`theme.*` file, a design-system package. Record the semantic token names (background, foreground, muted, border, primary…) as the project spells them.
+
+6. **Icon system** — find how icons are rendered (an icon package, a local `icons/` barrel, inline SVG-by-convention). Record the canonical way so you can flag deviations.
+
+7. **State/render idioms** — note the framework's correct patterns (derive-don't-store, immutable updates, memoization, disposal) so the audit speaks the project's dialect.
+
+**Output a short "Conventions" block** summarizing 1–7 before Phase 1. If any item is genuinely undiscoverable, say so explicitly — do not fill it with a guess.
+
+---
+
+## Phase 1: Exhaustive Audit (DO NOT modify anything yet)
+
+1. **Find ALL files** for the indicated feature/page in `$ARGUMENTS`: components, logic/hooks/code-behind, stylesheets, related types/constants, and the shared utilities discovered in Phase 0.
 
 2. **Read EACH file completely** — don't guess, don't assume.
 
-3. **Classify findings** in these categories (highest to lowest impact):
+3. **Classify findings** using the universal categories below (highest to lowest impact). Each row is framework-independent; map "canonical primitive" to whatever Phase 0 found.
 
-| Category | Example | Priority |
-|----------|---------|----------|
-| `any` types | `(lang: any)`, `(files: any[])` — especially in auth, org-scoping, hooks | CRITICAL |
-| Object mutation in state | `file as FileWithProgress; file.status = 'error'` instead of immutable spread | CRITICAL |
-| useEffect to derive state | `useEffect(() => setX(compute(y)), [y])` instead of `const x = compute(y)` | CRITICAL |
-| Monolithic hook (300+ LOC) | Single hook mixing pipeline logic, state, UI helpers | HIGH |
-| DRY violation (duplicated pipeline/helpers) | Same pattern copy-pasted in 3+ files | HIGH |
-| Hardcoded colors | `bg-gray-100`, `text-gray-900` instead of semantic tokens (`bg-background`, `text-foreground`) | HIGH |
-| Inline SVG | Raw `<svg><path>` instead of icon components from `~/icons/` | HIGH |
-| Hand-rolled radio/checkbox | Custom `<button>` with manual circle indicators instead of Radix primitives | HIGH |
-| Missing `useCallback`/`useMemo` | Handlers recreated every render in hooks that return stable references | MEDIUM |
-| Hardcoded constants | Magic numbers, inline fallback arrays that should be config constants | MEDIUM |
-| Dead state/imports | State variables written but never read, unused imports | MEDIUM |
-| Duplicated computed values | Same derivation computed in 2+ places instead of single `useMemo` | MEDIUM |
-| Raw `@keyframes` | Should use `tailwindcss-animate` primitives via `@apply` | LOW |
-| Utility class drift | `px-5` when existing pattern is `px-4`, inconsistent spacing | LOW |
+| Category | What it looks like (any stack) | Priority |
+|----------|-------------------------------|----------|
+| Untyped escape hatches | `any`/`object`/`dynamic`/`interface{}` in auth, scoping, data boundaries | CRITICAL |
+| Mutating shared/state objects | In-place mutation where the framework requires immutable updates | CRITICAL |
+| Derived state stored & synced | Effect/watcher that re-stores a value computable directly from inputs | CRITICAL |
+| Hand-rolled vs canonical primitive | Raw input/select/checkbox/modal instead of the project's discovered form/modal primitive | CRITICAL |
+| Monolithic unit | One file mixing logic, state, and presentation past the repo's norm | HIGH |
+| DRY violation | Same block/pipeline/helper copy-pasted in 3+ places | HIGH |
+| Hardcoded visual values | Literal colors/sizes instead of the project's semantic design tokens | HIGH |
+| Off-system iconography | Icons rendered against the repo's discovered convention | HIGH |
+| Redundant boilerplate | Imports/namespaces/usings already provided globally by the project | MEDIUM |
+| Missing memoization/stability | Recreated handlers/derivations where the framework expects stable refs | MEDIUM |
+| Magic numbers/strings | Inline literals that should be named constants/config | MEDIUM |
+| Dead code | State written-never-read, unused imports, orphaned helpers | MEDIUM |
+| Missing cleanup | Timers/subscriptions/listeners without disposal | MEDIUM |
+| Style drift | Inconsistent spacing/scale vs the established pattern | LOW |
+| Orphan styles | Unreferenced keyframes/classes; raw animation where a primitive exists | LOW |
+| Accessibility/touch | Sub-44px targets, illegible contrast, missing keyboard close on overlays | LOW |
 
-### Phase 2: Implement in Rounds
+---
 
-Execute rounds of ~8-12 changes each. Each round:
+## Phase 2: Implement in Rounds
 
-1. **List the changes** BEFORE applying them (table with #, description, file, category)
-2. **Prioritize**: CRITICAL first, then HIGH, then MEDIUM, LOW last
-3. **Apply all changes** in the batch
-4. **Verify**: `npx tsc --noEmit` (zero errors) + `npx next build` (must pass)
-5. **Report** a summary of the round
+Execute rounds of ~8–12 changes each. Each round:
 
-### Phase 3: Next Round
+1. **List the changes** BEFORE applying them (table: #, description, file, category).
+2. **Prioritize**: CRITICAL first, then HIGH, MEDIUM, LOW last.
+3. **Apply all changes** in the batch.
+4. **Verify** with the command discovered in Phase 0 (must pass — zero new errors).
+5. **Report** a summary of the round.
+
+## Phase 3: Next Round
 
 After each round, ask: "Round N complete — X changes, clean build. Continue?"
 
 ---
 
-### Replacement Patterns (React/TS)
+## Universal Replacement Principles
 
-#### Object Mutation → Immutable Helpers
+These are framework-independent. Express each fix in the project's own primitives (Phase 0), not in any specific library's names.
 
-**Before (anti-pattern):**
-```tsx
-const fileWithProgress = file as FileWithProgress;
-fileWithProgress.id = `${file.name}-${index}`;
-fileWithProgress.status = 'idle';
-```
+**Mutation → immutable update**
+Replace in-place mutation of state/props with the framework's immutable update path (spread, copy-with, signal set, immutable helper). If the same update repeats 3+ times, extract a shared helper into the project's utils location.
 
-**After (correct):**
-```tsx
-import { createFileWithProgress } from '~/core/utils/file-progress';
-const wrapped = files.map(createFileWithProgress);
-```
+**Stored derived state → direct derivation**
+Replace `store + effect-to-resync` with a plain computed value (`const x = f(y)`, computed/memo/selector — whatever the framework provides). An effect is for side effects, not for mirroring inputs.
 
-#### useEffect Derived State → Direct Calculation
+**Hand-rolled control → canonical primitive**
+Replace bespoke inputs/selects/checkboxes/radios/modals with the project's discovered form/modal primitive. If none exists and the pattern recurs 3+ times, propose extracting one into the shared component location — name it by the repo's existing convention, never by another project's.
 
-**Before (anti-pattern):**
-```tsx
-const [fullName, setFullName] = useState('');
-useEffect(() => {
-  setFullName(`${firstName} ${lastName}`);
-}, [firstName, lastName]);
-```
+**Hardcoded visuals → semantic tokens**
+Replace literal colors/sizes with the project's semantic tokens (as Phase 0 spelled them). If a needed token is missing, add it to the token source rather than hardcoding.
 
-**After (correct):**
-```tsx
-const fullName = `${firstName} ${lastName}`;
-```
+**Off-system icon → canonical icon path**
+Replace inline/ad-hoc icons with the repo's discovered icon convention.
 
-#### Duplicated setFiles(prev => prev.map(...)) → Shared Helpers
+**Duplicated logic → shared helper**
+Extract by the Rule of Three: 2 copies stay, 3+ get a single shared helper in the project's utils location. Don't force a generic abstraction that needs 3+ params — duplication beats the wrong abstraction.
 
-**Before (anti-pattern):**
-```tsx
-setSelectedFiles(prev => prev.map(f => {
-  if (f.id === file.id) { f.status = 'error'; f.progress = 0; return f; }
-  return f;
-}) as FileWithProgress[]);
-// Repeated 11 times...
-```
-
-**After (correct):**
-```tsx
-import { updateFileById, markAllFiles, markFilesByIds } from '~/core/utils/file-progress';
-setFiles(prev => updateFileById(prev, file.id!, { status: 'error', progress: 0 }));
-```
-
-#### Hand-rolled Radio Buttons → RadioCardGroup
-
-**Before (anti-pattern):**
-```tsx
-<button onClick={() => setValue('a')}
-  className={cn('rounded-lg border-2 p-4', value === 'a' ? 'border-primary-600 bg-primary-50' : 'border-gray-200')}>
-  <div className="flex h-5 w-5 rounded-full border-2 ...">
-    {value === 'a' && <div className="h-3 w-3 rounded-full bg-primary-600" />}
-  </div>
-  <p>Option A</p>
-</button>
-{/* Repeated 4 times... */}
-```
-
-**After (correct):**
-```tsx
-import { RadioCardGroup } from '~/core/ui/FormControls';
-<RadioCardGroup
-  options={[{ value: 'a', label: 'Option A', description: '...' }]}
-  value={value}
-  onValueChange={setValue}
-/>
-```
-
-#### Hardcoded Colors → Semantic Tokens
-
-**Before:** `bg-gray-100 text-gray-900 border-gray-200`
-**After:** `bg-muted text-foreground border-border`
-
-#### Inline SVG → Icon Components
-
-**Before:** `<svg viewBox="0 0 24 24"><path d="M12..." /></svg>`
-**After:** `import { Check } from '~/icons/outlines'; <Check className="h-4 w-4" />`
+**Redundant boilerplate → remove**
+Drop imports/namespaces/usings already provided globally, dead state, and unused symbols.
 
 ---
 
-### Strict Rules (React/TS)
+## Strict Rules
 
-- **NEVER change business logic** — only structure, patterns, cleanup
-- **NEVER break the build** — `npx tsc --noEmit` + `npx next build` after each round
-- **No `any`** — especially in auth, session, org-scoping. Use proper types.
-- **Imports use `~/`** not `@/`
-- **Server Components by default** — Client only when real interactivity needed
-- **No magic numbers** — `MAX_UPLOAD_TIMEOUT_MS` not `180000`
-- **No inline SVG** — use icon components from `~/icons/`
-- **Semantic tokens** — `bg-background` not `bg-white`, `text-foreground` not `text-gray-900`
-- **`cn()` for conditional classes** — from `~/core/generic/shadcn-utils`
-- **Extract `@apply` classes** — reused 2+ times or >40 chars, into `src/app/styles/*.css`
-- **Shared helpers over local copies** — if a helper exists in `~/core/utils/`, import it
+- **NEVER change business logic** — only structure, patterns, UX, cleanup.
+- **NEVER break the build** — run the Phase 0 verify command after each round; red stays red, report it.
+- **NEVER import a name, alias, token, or component from another project** — only what Phase 0 proved exists here. If it doesn't exist, propose creating it in the canonical location; don't conjure it.
+- **No untyped escape hatches** at data/auth/scoping boundaries — use the language's proper types.
+- **Match the repo's idioms** — its alias, its token names, its package manager, its file layout. The code you leave should be indistinguishable from code the project's own team wrote.
+- **No magic numbers/strings** — name them as the project names constants.
+- **Shared over local** — if a helper/primitive exists, import it; don't redefine.
+- **Rule of Three for extraction** — don't extract on the second occurrence, don't tolerate the fourth.
+- **Modern language features** — use the current stable idioms of the detected stack (collection literals, file-scoped namespaces, computed signals, etc.).
+- **Accessibility floor** — overlays close on Escape, interactive targets ≥44px, legible contrast.
 
-### Per-File Checklist (React/TS)
+## Per-Unit Checklist (map to the discovered stack)
 
-**Hooks (.ts):**
-- [ ] No `any` types
-- [ ] No `useEffect` to derive state — calculate directly
-- [ ] Immutable state updates (spread, not mutation)
-- [ ] `useCallback` for handlers passed as props
-- [ ] `useMemo` for expensive computations
-- [ ] Shared helpers imported from `~/core/utils/` not redefined locally
-- [ ] Hook < 300 LOC (if bigger, decompose into pipeline steps + composing hook)
+**Logic units (hooks / code-behind / composables / stores):**
+- [ ] No untyped escape hatches
+- [ ] Derived values computed directly, not stored-and-synced
+- [ ] Immutable state updates
+- [ ] Stable references where the framework expects them (memo/callback/computed)
+- [ ] Shared helpers imported, not redefined
+- [ ] Cleanup for timers/subscriptions
+- [ ] Within the repo's size norm (else decompose)
 
-**Components (.tsx):**
-- [ ] No inline SVG — use `~/icons/` components
-- [ ] No hand-rolled radio/checkbox — use Radix primitives from `~/core/ui/FormControls`
-- [ ] Semantic color tokens, not hardcoded Tailwind colors
-- [ ] No magic numbers
-- [ ] `cn()` for conditional classes
-- [ ] `data-ref` attributes on interactive elements
+**Presentation units (components / templates / views):**
+- [ ] Canonical form/modal/selection primitives, not hand-rolled
+- [ ] Semantic design tokens, not hardcoded colors/sizes
+- [ ] Canonical icon convention, not off-system icons
+- [ ] No magic numbers; conditional styling via the repo's helper
+- [ ] Redundant global boilerplate removed
 
-**Styles (.css):**
-- [ ] Uses semantic CSS extraction (`@apply`) for reused patterns
-- [ ] No raw `@keyframes` — use `tailwindcss-animate`
-- [ ] No orphan classes
-
----
-
-## Stack: Blazor / .NET
-
-### Phase 1: Exhaustive Audit (DO NOT modify anything yet)
-
-1. **Find ALL files** for the indicated feature/page:
-   - `.razor` components (markup)
-   - `.razor.cs` code-behinds
-   - `.css` stylesheets in `wwwroot/css/`
-   - Partials and related sub-components
-   - Relevant design tokens (`_tokens.css`, `_variables.css`)
-
-2. **Read EACH file completely** — don't guess, don't assume.
-
-3. **Classify findings** in these categories (highest to lowest impact):
-
-| Category | Example | Priority |
-|----------|---------|----------|
-| Raw HTML form without FormField | Manual `<input>` + `<label>` that should be `<FormField>` | CRITICAL |
-| Form without FormSection | Field groups without structure, generic divs instead of `<FormSection>` with Layout | CRITICAL |
-| Modal without BaseModal | Hand-rolled `<div class="modal-*">` instead of `<BaseModal>` | CRITICAL |
-| Monolithic component (300+ lines) | .razor file with everything mixed, no sub-components | HIGH |
-| DRY violation (repeated HTML) | Same HTML/CSS block copy-pasted in 3+ files | HIGH |
-| Redundant @using | Import already in `_Imports.razor` | HIGH |
-| Redundant @namespace | `@namespace` in file already in the correct folder | HIGH |
-| Select/dropdown without VhSelect | Raw HTML `<select>` that should use `FormField Type="FormInputType.Select"` | HIGH |
-| Checkbox without FormField Check | Raw `<input type="checkbox">` that should be `FormField Type="FormInputType.Check"` | MEDIUM |
-| Old .NET code | `new List<>()` instead of `[]`, braced namespace, constructor boilerplate | MEDIUM |
-| Illegible/invisible | Text < 11px, invisible color on dark bg | LOW |
-| Insufficient touch target | Button < 44px | LOW |
-| Poor empty state | 16px icon, no hint text | LOW |
-| Orphan CSS | Keyframes without reference, dead classes | LOW |
-
-### Phase 2: Implement in Rounds
-
-Execute rounds of ~8-12 changes each. Each round:
-
-1. **List the changes** BEFORE applying them (table with #, description, file, category)
-2. **Prioritize**: CRITICAL first, then HIGH, then MEDIUM, LOW last
-3. **Apply all changes** in the batch
-4. **Run `dotnet build`** to verify 0 errors
-5. **Report** a summary of the round
-
-### Phase 3: Next Round
-
-After each round, ask: "Round N complete — X changes, clean build. Continue?"
-
----
-
-### Replacement Patterns (Blazor)
-
-#### HTML Form → FormField + FormSection
-
-**Before (anti-pattern):**
-```razor
-<div class="form-group">
-    <label for="name">Name</label>
-    <input type="text" id="name" @bind="Model.Name" placeholder="Enter name" />
-</div>
-```
-
-**After (correct):**
-```razor
-<FormSection Title="Product Data" Icon="package" Layout="FormLayout.TwoColumn">
-    <FormField TValue="string" Id="name" Label="Name" Type="FormInputType.Text"
-               @bind-Value="Model.Name" Placeholder="Enter name" Required />
-</FormSection>
-```
-
-#### HTML Select → FormField Select
-
-**Before:**
-```razor
-<select @bind="Model.Category">
-    <option value="">Select...</option>
-    @foreach (var cat in _categories)
-    {
-        <option value="@cat.Id">@cat.Name</option>
-    }
-</select>
-```
-
-**After:**
-```razor
-<FormField TValue="Guid" Id="category" Label="Category" Type="FormInputType.Select"
-           @bind-Value="Model.Category" Options="_categoryOptions" Required />
-```
-
-#### Div Modal → BaseModal
-
-**Before:**
-```razor
-@if (_showModal)
-{
-    <div class="modal-backdrop" @onclick="CloseModal">...</div>
-}
-```
-
-**After:**
-```razor
-<BaseModal Visible="@_showModal" Title="Title" HeaderIcon="edit"
-           Size="ModalSize.Medium" IsProcessing="@_saving"
-           CloseOnBackdrop="true" OnClose="@(() => _showModal = false)">
-    <ChildContent>@* content *@</ChildContent>
-</BaseModal>
-```
-
-#### Monolithic Component → Split
-
-**Signals that a split is needed:**
-- File > 200 lines of markup
-- `@code` block > 100 lines → extract to `.razor.cs`
-- 3+ visually distinct sections → each one = sub-component
-- 10+ `@inject` → too many responsibilities
-
----
-
-### Strict Rules (Blazor)
-
-- **NEVER change business logic** — only structure, UX, patterns, cleanup
-- **NEVER break the build** — verify after each round
-- **Respect design tokens** — use `var(--pos-*)` / `var(--text-*)`, don't hardcode colors
-- **`@using` goes in `_Imports.razor`** unless there's a documented conflict
-- **`@namespace` is redundant** if the file is in the correct folder — remove it
-- **Modern .NET**: `[]` instead of `new()`, file-scoped namespaces, collection expressions
-- **FormField is the standard** — all raw `<input>`, `<select>`, `<textarea>` must migrate
-- **BaseModal is the standard** — all hand-rolled modals must migrate
-- **If a FormField Type doesn't exist for the case**, use `FormInputType.Custom` with `ChildContent`
-- **When migrating selects**, create the `VhSelectOption<T>` list where data is loaded
-- **Keyboard shortcuts**: overlays/modals must close with Escape
-
-### Per-File Checklist (Blazor)
-
-**Razor:**
-- [ ] No raw `<input>`, `<select>`, `<textarea>` (use FormField)
-- [ ] No manual `<label>` + `<input>` (FormField includes label)
-- [ ] No manual `<div class="modal-*">` (use BaseModal)
-- [ ] Fields grouped in FormSection with correct Layout
-- [ ] No redundant `@namespace`
-- [ ] No `@using` already in `_Imports.razor`
-- [ ] `[]` instead of `new()` for Parameter defaults
-- [ ] File < 300 lines (if not, split)
-- [ ] `@implements IDisposable` if there are timers/subscriptions
-
-**CSS:**
-- [ ] Uses design system tokens
-- [ ] No orphan classes
-- [ ] No keyframes without reference
-
-**Code-behind (.cs):**
-- [ ] No dead injections (injected services never used)
-- [ ] Timers with proper Dispose
-- [ ] Primary constructors where applicable
+**Styles:**
+- [ ] Reused patterns extracted via the project's mechanism
+- [ ] No orphan classes/keyframes; animation via the project's primitive
 
 ---
 
 ## Closing: Build and Verification
 
-When ALL work from the command is done, ask with `AskUserQuestion`:
+When ALL work is done, ask with `AskUserQuestion`, wording the build option with the **actual command discovered in Phase 0**:
 
-**React/TS:**
-- **"tsc + next build + Chrome DevTools"**: Run both checks, open Chrome DevTools, take screenshot, report console errors
-- **"tsc + build only"**: Run `npx tsc --noEmit` + `npx next build`, report errors
-- **"I'll verify myself"**: Finish without verifying
-
-**Blazor:**
-- **"Build + Chrome DevTools"**: Run `dotnet build`, report warnings/errors, open Chrome DevTools
-- **"Build only"**: Run `dotnet build` and report
-- **"I'll do it with /build-check"**: Finish without verifying
+- **"Verify + Chrome DevTools"**: Run the project's build/typecheck/lint, then open Chrome DevTools, screenshot the affected surface, report console errors.
+- **"Verify only"**: Run the project's build/typecheck/lint and report results.
+- **"I'll verify myself"**: Finish without verifying.
