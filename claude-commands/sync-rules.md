@@ -1,106 +1,91 @@
-# /sync-rules — Sync Claude Rules to AI Reviewer
+# /sync-rules — Push local engineering-playbook rules up to GitHub
 
-Copy shared rules from `.claude/rules/` (source of truth) to `github-org/ai-rules/rules/shared/` (AI reviewer consumes these). Commit and push.
+Sincroniza tus rules del **engineering-playbook** hacia GitHub. Es el counterpart
+simétrico de `/sync-commands`: tus rules viven en `~/Documents/engineering-playbook/rules/`
+(repo `BernardUriza/engineering-playbook`), expuestas globalmente vía el symlink
+`~/.claude/rules/playbook`. Editaste una rule en cualquier proyecto → este comando la
+respalda en GitHub y la deja disponible en todas tus máquinas.
 
-ARGUMENTS:
+> Como `~/.claude/rules/playbook` es un symlink al repo, editar una rule en cualquier
+> lado edita el repo directo. "Sync" = commit + push, no una copia entre ubicaciones.
+
+ARGUMENTS: opcional — mensaje de commit. Si está vacío, se autogenera listando los
+archivos cambiados.
 
 ## Instructions
 
-### 1. Define the sync list (ONLY these files — nothing else)
-
-```python
-SYNC_FILES = [
-    "security.md",
-    "multi-tenancy.md",
-    "data-privacy.md",
-    "code-quality.md",
-    "styling.md",
-    "git.md",
-    "language.md",
-    "data-ref.md",
-    "issue-workflow.md",
-]
-```
-
-**NEVER sync these files — they are Bernard-only rules for interactive Claude Code sessions, NOT for the AI reviewer:**
-- `agent-orchestration.md`
-- `session-discipline.md`
-- `team-dynamics.md`
-
-**Why these are excluded:** They contain personal workflow rules ("Claude proposes ending sessions", "Bernard's communication tone") that pollute the GPT reviewer prompt with irrelevant context. On 2026-03-28, they accidentally leaked into shared/ and added ~5KB of noise to every review prompt.
-
-### 2. Safety check — verify no excluded files exist in shared/
-
-Before syncing, check that excluded files have not leaked into shared/:
+### 1. Resolver el repo (canónico, vía el symlink — nunca hardcodear el path)
 
 ```bash
-for file in agent-orchestration.md session-discipline.md team-dynamics.md; do
-  if [ -f "github-org/ai-rules/rules/shared/$file" ]; then
-    echo "WARNING: $file found in shared/ — DELETING (should not be here)"
-    rm "github-org/ai-rules/rules/shared/$file"
-  fi
-done
+REPO=$(readlink -f ~/.claude/rules/playbook | xargs dirname)   # .../engineering-playbook
+cd "$REPO"
+BRANCH=$(git branch --show-current)                            # es master, no main — resolver dinámico
 ```
 
-If any were found and deleted, include them in the commit.
+Verificar que es el repo correcto: `git remote get-url origin` debe contener
+`BernardUriza/engineering-playbook`. Si no, PARAR y reportar.
 
-### 3. Diff before copying
+### 2. Asegurar el .gitignore (basura macOS fuera)
 
-For each file in `SYNC_FILES`, run:
-```bash
-diff .claude/rules/<file> github-org/ai-rules/rules/shared/<file>
+Si `.gitignore` no cubre la basura, añadir:
+
+```
+.DS_Store
+Icon?
+*.swp
 ```
 
-Report a table:
-
-| File | Status |
-|------|--------|
-| security.md | Changed (15 lines differ) |
-| multi-tenancy.md | Identical |
-| ... | ... |
-
-If ALL files are identical and no excluded files were found, report "Everything in sync" and stop.
-
-### 4. Copy changed files
+### 3. Pull --rebase primero (evitar conflictos con otra máquina)
 
 ```bash
-cp .claude/rules/<changed-file> github-org/ai-rules/rules/shared/<changed-file>
+git pull --rebase origin "$BRANCH"
 ```
 
-Only copy files that actually differ. Never touch identical files.
+Si hay conflicto, PARAR y reportar — no forzar (no perder trabajo de otra máquina, Art. 5).
 
-**Special handling for security.md:** Strip the `## Local Secrets Map` section before copying — secrets are local-only and must never reach the shared repo.
+### 4. Diff antes de commitear
 
 ```bash
-sed '/## Local Secrets Map/,/## Never/{/## Never/!d}' .claude/rules/security.md > github-org/ai-rules/rules/shared/security.md
+git status --short rules/
 ```
 
-### 5. Commit and push
+Reportar una tabla: archivo | estado (nuevo / modificado / borrado). Si NO hay cambios
+en `rules/`, reportar "Todo en sync" y terminar.
+
+### 5. Stage SOLO rules + .gitignore (no la basura)
 
 ```bash
-cd github-org
-git add ai-rules/rules/shared/
-git commit -m "chore: sync shared rules from .claude/rules/"
-git push origin main
+git add rules/ .gitignore
+git status --short   # verificar el closure
 ```
 
-### 6. Report
+### 6. Commit + push
+
+```bash
+git commit -m "chore(rules): sync ${ARGUMENTS:-<lista autogenerada>}
+
+Co-Authored-By: Claude <noreply@anthropic.com>"
+git push origin "$BRANCH"
+```
+
+### 7. Reportar
 
 ```
-Synced N files to github-org/ai-rules/rules/shared/
-Changed: security.md, code-quality.md
-Unchanged: 7 files
-Excluded files cleaned: 0 (or list any that were found and deleted)
-Commit: <hash>
+Sincronizado a BernardUriza/engineering-playbook (commit <hash>, branch <branch>):
+  Rules: <N nuevas/modificadas>
+Pusheado. Disponible en todas tus máquinas tras `git pull`.
 ```
 
 ## Rules
 
-- `SYNC_FILES` is the ONLY allowlist — if a file is not in the list, it does NOT get synced
-- `.claude/rules/` is ALWAYS the source of truth — never copy the other direction
-- **Never sync files not in SYNC_FILES** — even if they exist in both locations
-- Never modify the source files — this is a one-way copy
-- Always diff before copying — don't blindly overwrite identical files
-- Always commit+push after copying — local-only changes are invisible to the AI reviewer
-- Always run the safety check first — catch leaks before they pollute the reviewer prompt
-- Strip secrets from security.md before copying
+- El repo (vía symlink `~/.claude/rules/playbook`) es SIEMPRE el source of truth —
+  subida one-way, no una copia entre ubicaciones.
+- Resolver repo Y branch dinámicamente (`readlink` + `git branch --show-current`) —
+  nunca hardcodear el path ni asumir `main` (el playbook está en `master`).
+- `git pull --rebase` ANTES del push — otra máquina pudo haber pusheado.
+- Stagear SOLO `rules/` + `.gitignore`. Nunca basura macOS, nunca archivos fuera de ahí.
+- Si el rebase da conflicto: PARAR y reportar, nunca forzar (Art. 5).
+- Siempre commit+push — un cambio local-only es invisible en GitHub y en otras máquinas.
+
+> Hermano de `/sync-commands` (sube commands + skills del repo de profile). Este sube
+> las rules del playbook. Ver `INSTALL.md` en el repo de profile para el lado de bajada.
