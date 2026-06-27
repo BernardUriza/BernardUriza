@@ -92,6 +92,18 @@ Para instalar en otra máquina:
   # Pedirle a Claude Code: "instala mis commands y skills globales"
 ```
 
+## One-liner (Mac/Linux) — instalar en una PC nueva
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/BernardUriza/BernardUriza/main/install.sh | bash
+```
+
+`install.sh` es idempotente: clona (o hace `git pull` si ya existe), respalda
+cualquier `~/.claude/commands` o `~/.claude/skills` que sea un directorio real, y
+deja los symlinks apuntando al repo. Re-correrlo en una máquina ya instalada solo
+actualiza y reporta "ya enlazado". Ruta de clone configurable con
+`CLAUDE_PROFILE_DIR=/otra/ruta`.
+
 ## Para humanos (manual)
 
 ### Mac/Linux
