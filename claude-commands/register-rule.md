@@ -55,6 +55,31 @@ register the prohibition separately as a Type 1 rule; link them, don't merge.
 
 When the user provides a new rule or guideline, the **FIRST decision is which LEVEL it belongs to** — NEVER write flat to the current repo's `.claude/rules/`. That flat-write is the exact bug that scattered Bernard's rules across 35+ repos. Route by level:
 
+### Step 0 — Read & consolidate BEFORE writing (mandatory; do NOT append blind)
+
+The default failure of this command is ADDING a fresh block without checking what
+already exists — producing duplicate/contradictory sections that bloat the auto-load
+layer (`90-memory-policy`: target <20k, hard cap 30k tokens). Before writing one line:
+
+1. Extract the rule's core concept + 3-6 keywords.
+2. Grep the relevant rules tree(s):
+   `grep -rniE "<kw1>|<kw2>|<kw3>" ~/.claude/rules/ ~/Documents/engineering-playbook/rules/ ./.claude/rules/ 2>/dev/null`
+3. Read every candidate section the grep surfaces, then:
+   - **Already covered** → write NOTHING; report `already in <file>:<line>` and stop.
+   - **Partially covered / a section already owns the topic** → EDIT that section
+     surgically to integrate the new point. NEVER stack a new block on top of — or
+     contradicting — content that already covers the theme.
+   - **Genuinely absent** → only then add, under the most appropriate existing file.
+4. Default = edit/consolidate. Appending when a section already covers the theme is
+   FORBIDDEN. No grep output proving absence = no right to add a block. Auto-load
+   edits must not grow the layer past the cap — tighten existing lines before adding.
+
+*Anchor 2026-06-29: in one session Claude appended four times (claude-incidents,
+20-honesty, two sections to 50-output-handling — one contradicting the existing cdb
+section) instead of consolidating. Bernard: "agregar más rules para saturar la ventana
+porque te da hueva leer lo que ya hay y modificarlo." This STEP 0 (present in the old
+local register-rule, lost in this global one) exists so that never repeats.*
+
 ### Step 1 — Classify the level
 
 | Level | Destination | When |
