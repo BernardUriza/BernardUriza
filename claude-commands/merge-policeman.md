@@ -1,6 +1,14 @@
-# /merge-policeman — PR Review Queue Scanner & Batch Reviewer
+# /merge-policeman — PR Review Queue Scanner & Batch Closer
 
 ARGUMENTS: $ARGUMENTS
+
+## Mission
+
+**The goal is CLOSURE, not reviews.** A review is a means; the end state of every PR this command touches is one of: MERGED, remedy dispatched, author pinged on blocking findings, or explicitly deferred by Bernard. A session that only stacks another review on a PR that already had one is a FAILED session.
+
+> Anchor 2026-07-13: `visalaw-gen-backend#1544` accumulated 14 of Bernard's reviews over a month and stayed open; `visalaw-gen-standalone-services#303/#304` were each APPROVED twice (07-07 and again 07-11) and never merged. The command produced reviews forever and closed nothing. Phase 2 step 0.5 and Phase 3.5 exist to kill exactly that.
+
+Every PR that enters Phase 2 must exit with a **next-action**, never with just a verdict.
 
 ## Instructions
 
@@ -21,10 +29,10 @@ ARGUMENTS: $ARGUMENTS
    gh pr view <N> --repo Visalaw/<repo> --json state,isDraft,mergeable,mergeStateStatus,reviews,statusCheckRollup --jq '{state, draft: .isDraft, mergeable, mergeStateStatus, approvals: [.reviews[] | select(.state == "APPROVED")] | length, checks_pass: ([.statusCheckRollup[]? | select(.conclusion != "SUCCESS" and .conclusion != null and .conclusion != "SKIPPED" and .conclusion != "NEUTRAL")] | length == 0)}'
    ```
    - **If `state != "OPEN"`** → PR is CLOSED or MERGED since discovery. **Discard it immediately.** Collect these in a "dead PRs" bucket for the summary note.
-   - **If `state == "OPEN"` AND ≥1 approval AND all checks pass** → ready to merge. **Discard** from the review list.
-   - Show discarded PRs in two separate notes:
+   - **If `state == "OPEN"` AND ≥1 approval AND all checks pass** → do NOT re-review it and do NOT silently discard it. Move it to the **Ready-to-merge queue** (Phase 3.5) — an approved PR left rotting is the #303/#304 failure mode.
+   - Show routed/discarded PRs in two separate notes:
      - `☠️ Skipped N PRs (closed/merged since discovery): #X (CLOSED), #Y (MERGED)`
-     - `ℹ️ Skipped N PRs (already approved + checks passing): #X, #Y`
+     - `✅ Moved N PRs to the Ready-to-merge queue (approved + checks passing): #X, #Y`
 
 4. **Query ALL open human PRs across Visalaw repos (team awareness):**
    ```bash
@@ -102,9 +110,7 @@ ARGUMENTS: $ARGUMENTS
 
 7. **If ARGUMENTS is provided**, filter the tables to only show PRs matching the argument (repo name, author, PR number, or keyword in title).
 
-8. **Ask the user** which PRs to review:
-   - Default: all human PRs in batch
-   - Or they can pick specific numbers from the table
+8. **Ask the user which PRs to review — with the native `AskUserQuestion` tool, never a free-text question.** Options: all human PRs in batch / only VAIR PRs / specific numbers from the table / skip straight to closure routing (Phase 3.5) when the queues are dominated by already-reviewed PRs.
 
 ### Phase 2: Batch Review — Read and Analyze Each PR
 
@@ -117,6 +123,18 @@ For each PR selected for review, in order:
    - If `state != "OPEN"` → **SKIP this PR.** Print: `⏭️ PR #N is now <STATE> — skipping review (was OPEN in Phase 1, changed since).`
    - If `mergeStateStatus == "UNKNOWN"` → GitHub has not finished computing. Either wait 5-10s and retry, or proceed with a warning note in the verdict: `⚠️ mergeStateStatus=UNKNOWN at analysis time — re-verify before merge.`
    - Only proceed with steps 1-6 if `state == "OPEN"`.
+
+0.5. **PRIOR-REVIEW MEMORY CHECK (MANDATORY — kills the infinite-review loop).** Before reading the diff, check whether YOU already reviewed this PR and whether anything changed since:
+   ```bash
+   gh api repos/Visalaw/<repo>/pulls/<N>/reviews --jq '[.[] | select(.user.login == "bernarduriza-visalaw")] | last | {state, commit_id, submitted_at}'
+   gh pr view <N> --repo Visalaw/<repo> --json headRefOid --jq .headRefOid
+   ```
+   - **No prior review** → proceed with the full review (steps 1–6).
+   - **Prior review exists AND `commit_id == headRefOid`** (head unchanged since your last review) → **DO NOT RE-REVIEW.** The findings already exist; producing them again is waste. Route directly by the last verdict:
+     - `APPROVED` → Ready-to-merge queue (Phase 3.5).
+     - `CHANGES_REQUESTED` / `COMMENTED` → Remedy/ping queue (Phase 3.5).
+     - Print: `♻️ PR #N already reviewed (<STATE> at <date>, head unchanged) — routing to closure, not re-reviewing.`
+   - **Prior review exists AND head moved** → review the DELTA, not the world: `gh api repos/Visalaw/<repo>/compare/<commit_id>...<headRefOid>` for the new commits; the full diff is context only. The verdict block must say `delta review since <short-sha>`.
 
 1. **Read the PR diff:**
    ```bash
@@ -202,18 +220,40 @@ After all PRs are analyzed and the user has weighed in on flagged items:
 
 4. **Never submit a review without the user's explicit approval.** Show the review content first and ask "Submit this review?" before executing.
 
-### Phase 4: Summary
+### Phase 3.5: Closure Routing — every PR leaves with a next-action
 
-After all reviews are submitted, show:
-```
-## Review Session Complete
-- Approved: N PRs
-- Changes Requested: N PRs
-- Commented: N PRs
-- Skipped: N PRs (dependabot/github-actions summary only)
+This phase is the point of the command. Route every PR that reached Phase 2 (or was routed here by step 0.5 / Phase 1):
 
-Next oldest unreviewed PR: [link]
+1. **Ready-to-merge queue** (approved + checks green + `mergeStateStatus == CLEAN`): present the queue via `AskUserQuestion` (multiSelect) — "which of these do I merge now?". Bernard's selection IS the explicit merge authorization for exactly those targets:
+   ```bash
+   gh pr merge <N> --repo Visalaw/<repo> --squash
+   ```
+   PRs he does not select are recorded as `deferred by Bernard <date>` in the summary. Never merge a PR he did not explicitly pick in this session.
+
+2. **Remedy queue** (VAIR PRs with REQUEST_CHANGES or unresolved findings): the findings MUST already exist as **inline review threads** on the PR (Phase 3 step 2 posts them — the remedy pipeline reads `reviewThreads` via GraphQL; a chat verdict or PR-body comment is invisible to it). Then offer both dispatch routes via `AskUserQuestion`:
+   - **Local**: Bernard types `/remedy-mr <repo>#<N>` — it is `disable-model-invocation`, Claude cannot fire it; print the exact invocation for him to type.
+   - **CI**: post the PR comment `/ai-remedy` (or `/ai-remedy approve`) — from PowerShell or `MSYS_NO_PATHCONV=1`, NEVER bare Git Bash (leading-slash path-mangling turns it into a silent no-op), then verify the "AI Commands" run is non-`skipped`.
+
+3. **Ping queue** (human PRs blocked on their author or another reviewer): draft the 1-line Slack ping per PR (bare URL, English, channel rules apply), show the drafts, send only on Bernard's go.
+
+4. **Stagnation flags**: any OPEN PR that already carries ≥2 of your own reviews is flagged `🔁 STAGNANT — needs a closure decision, not another review` and goes into the AskUserQuestion menu with options: merge / remedy / close PR / defer.
+
+### Phase 4: Summary — closure metrics, not review counts
+
+After routing, show:
 ```
+## Session Complete
+- MERGED: N PRs (#…)
+- Remedy dispatched: N PRs (#…)
+- Findings posted (awaiting remedy/author): N PRs
+- Author pinged: N PRs
+- Deferred by Bernard: N PRs
+- ♻️ Re-review skipped (head unchanged): N PRs
+- ☠️ Dead since discovery: N PRs
+
+🔁 Stagnant (≥2 reviews, still open): #X, #Y — these need a closure decision next session, not another review.
+```
+A session where MERGED and "Remedy dispatched" are both zero and "Findings posted" is the only nonzero count means the command reviewed without closing — say that explicitly instead of dressing it up as progress.
 
 ## Rules
 
@@ -228,6 +268,10 @@ Next oldest unreviewed PR: [link]
 9. **Flag scope creep** — if a PR touches files outside its stated purpose, call it out.
 10. **Respect seniority** — interns get constructive feedback, senior devs get direct technical notes.
 11. **Codex peer is advisory, never authoritative.** Codex's verdict is a second opinion, not a tiebreaker. Bernard always makes the final call. If verdicts diverge, surface the divergence explicitly — never silently pick one side. If codex is unavailable, the review proceeds with Claude's verdict alone (noted as `Codex peer unavailable`).
+12. **Closure over review.** Never leave a reviewed PR without a routed next-action (merge proposed / remedy dispatched / author pinged / explicit deferral by Bernard). Review count is not a success metric; closed PRs are.
+13. **Never re-review an unchanged head.** Phase 2 step 0.5 is mandatory. Re-reviewing a PR whose head SHA equals your last review's `commit_id` is the #1544 anti-pattern (14 reviews, 1 month, still open) — forbidden.
+14. **Use the native `AskUserQuestion` tool** for batch selection (Phase 1 step 8) and closure routing (Phase 3.5) — never free-text "which ones?" questions buried in prose.
+15. **Merges and remedy dispatches are per-target authorizations.** An AskUserQuestion selection authorizes exactly the PRs selected in this session, nothing more. `/remedy-mr` is user-invoked only — print the invocation for Bernard, never simulate or substitute it.
 
 ## Severity Levels
 
