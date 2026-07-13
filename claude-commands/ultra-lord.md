@@ -28,8 +28,8 @@ El principio: cuando Bernard te muestra un menu A/B/C/D, no es porque quiera ele
 - **question**: una sentencia que nombra la decisión tomada + pide confirmación de ejecución. Formato: `"Ejecuto <acción concreta>? (decidido por <criterio de desempate>)"`.
 - **options** (máximo 3, mínimo 2):
   - Opción 1 — **siempre** la acción inmediata decidida ("Sí, ejecutar ahora"). `description` describe los comandos/edits exactos que Claude correrá.
-  - Opción 2 — variante minimal de la misma acción si aplica (ej. dry-run, scope reducido), o "Ajustar parámetro X y ejecutar".
-  - Opción 3 (opcional) — "Cancelar — la decisión está mal". Solo si genuinamente hay riesgo de que Claude haya elegido mal.
+  - Opción 2 — SOLO si existe una **bifurcación ingenieril GENUINA**: un segundo camino defendible con consecuencias materialmente distintas (otro diseño, otro target, otro trade-off irreversible). Si no existe bifurcación real, la opción 2 es "Cancelar — la decisión está mal". **PROHIBIDO** que sea la opción 1 degradada: "sin ticket", "sin PR", "sin documentar", "solo el fix", "dry-run por miedo" NO son opciones — documentación, verificación y trazabilidad son parte del trabajo, no extras desagregables.
+  - Opción 3 (opcional) — "Cancelar — la decisión está mal". Solo si genuinamente hay riesgo de que Claude haya elegido mal y la opción 2 es un camino real.
 
 **Prohibido** que las opciones sean: "Discutirlo más", "Pensar otras opciones", "Te explico pros y contras". Ninguna opción puede ser introspección — todas son trabajo o cancelación.
 
@@ -60,6 +60,8 @@ El principio: cuando Bernard te muestra un menu A/B/C/D, no es porque quiera ele
 - Si la pregunta YA está resuelta: `question` = `"Ya está hecho. Confirmo cierre del hilo?"`, opción 1 = "Cerrar y seguir con próxima tarea".
 - Si falta contexto crítico para decidir: `question` = `"Falta <X>. Lo busco yo o lo das vos?"`, opción 1 = "Busco con `<comando concreto>`", opción 2 = "Vos lo das".
 - Si el input es código: la opción 1 nombra el archivo + línea + edit exacto.
+- **NUNCA** desagregues documentación/verificación/tickets/tracker de la acción — van DENTRO de la opción 1, siempre. Un parche sin documentar no es "la variante rápida": es deuda técnica instantánea.
+- La opción 2 confirma una BIFURCACIÓN real, no da "sensación de control". Si te descubrís escribiendo "Solo X, sin Y" donde Y es el estándar profesional obvio, borrá esa opción y meté Y dentro de la opción 1.
 
 ## Ejemplos
 
@@ -72,7 +74,7 @@ AskUserQuestion(
   question: "Ejecuto el fix candidato en feature branch + verifico en preview de Vercel? (menor blast radius que prod, más refute que escalar)",
   options: [
     { label: "Sí, ejecutar", description: "Crear bernarduriza/<slug>, aplicar el fix, push, abrir draft PR, esperar Vercel preview" },
-    { label: "Solo el commit, sin PR", description: "Cherry-pick el fix a la branch, push, sin abrir PR todavía" }
+    { label: "Cancelar — decisión mal", description: "Preferís otro camino — decilo y lo convierto en acción" }
   ]
 )
 ```
@@ -113,4 +115,5 @@ AskUserQuestion(
 - Bullet points o pros/cons en las `description`s
 - Repetir las opciones que Bernard ya leyó
 - Más de 3 opciones — si necesitás 4, ya fallaste el ejercicio de decidir
+- Opción "lite" como segunda opción (sin ticket / sin PR / sin docs / dry-run-por-miedo) — es el comité corporativo dando falsa sensación de control con una opción evidentemente mediocre
 - Metáforas de Ultra Lord, Robo-Fiend, etc. — el nombre es memoria personal, NO la personalidad
