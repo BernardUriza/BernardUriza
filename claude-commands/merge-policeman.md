@@ -14,6 +14,12 @@ ARGUMENTS: $ARGUMENTS
 
 Every PR that enters Phase 2 must exit with a **next-action**, never with just a verdict.
 
+**Blocking findings are NOT a dead end — they route to REMEDY, which makes the PR approvable. Never report a PR (or a batch) as "not approvable" as if that were a terminal state.** A REQUEST_CHANGES verdict is the START of closure, not the end: the command's job is to turn it approvable. Post the findings as inline review threads, then **suggest/dispatch remedy** so the fix is applied and the PR can be approved and merged:
+- **Local**: `/remedy-mr <repo>#<N>` — Bernard types it (it is `disable-model-invocation`; Claude CANNOT fire it). Always PRINT the exact invocation for him.
+- **CI**: post the PR comment `/ai-remedy approve` (PowerShell / `MSYS_NO_PATHCONV=1`, never bare Git Bash), then verify the "AI Commands" run is non-`skipped`. Claude CAN fire this where the AI Commands workflow exists.
+
+**Remedy applies to HUMAN PRs too, not just VAIR** — fixing a teammate's findings for them and pushing the fix to their branch is the fastest path to green, and "accelerate to approvable" is the whole point. The default framing of a session is never "N PRs not approvable"; it is "N PRs with findings → remedy dispatched → approvable". If a finding is only PLAUSIBLE (not confirmed), the remedy thread says so and lets the remedy agent confirm-or-fix; do not withhold remedy just because certainty is short of 100%.
+
 ## Definitions — "needs review" vs "covered"
 
 A congruent review = an `APPROVED` review whose `commit_id` equals the PR's **current** `headRefOid`. Applied per PR:
@@ -235,9 +241,9 @@ This phase is the point of the command. Route every PR that reached Phase 2 (or 
    ```
    PRs he does not select are recorded as `deferred by Bernard <date>` in the summary. Never merge a PR he did not explicitly pick in this session.
 
-2. **Remedy queue** (VAIR PRs with REQUEST_CHANGES or unresolved findings): the findings MUST already exist as **inline review threads** on the PR (Phase 3 step 2 posts them — the remedy pipeline reads `reviewThreads` via GraphQL; a chat verdict or PR-body comment is invisible to it). Then offer both dispatch routes via `AskUserQuestion`:
-   - **Local**: Bernard types `/remedy-mr <repo>#<N>` — it is `disable-model-invocation`, Claude cannot fire it; print the exact invocation for him to type.
-   - **CI**: post the PR comment `/ai-remedy` (or `/ai-remedy approve`) — from PowerShell or `MSYS_NO_PATHCONV=1`, NEVER bare Git Bash (leading-slash path-mangling turns it into a silent no-op), then verify the "AI Commands" run is non-`skipped`.
+2. **Remedy queue — the DEFAULT route for ANY PR (human OR VAIR) with blocking findings.** This is how "not approvable" becomes "approvable" — always propose remedy on a REQUEST_CHANGES PR, never stop at the verdict. The findings MUST already exist as **inline review threads** on the PR (Phase 3 step 2 posts them — the remedy pipeline reads `reviewThreads` via GraphQL; a chat verdict or PR-body comment is invisible to it). Then dispatch/suggest both routes:
+   - **Local**: Bernard types `/remedy-mr <repo>#<N>` — it is `disable-model-invocation`, Claude cannot fire it; ALWAYS print the exact invocation for him to type.
+   - **CI**: post the PR comment `/ai-remedy approve` — from PowerShell or `MSYS_NO_PATHCONV=1`, NEVER bare Git Bash (leading-slash path-mangling turns it into a silent no-op), then verify the "AI Commands" run is non-`skipped`. **Before relying on the CI route, confirm the target repo actually has the "AI Commands" workflow** (`gh workflow list --repo Visalaw/<repo>`); not every repo does — if it's absent, the CI comment is a no-op and the local `/remedy-mr` route is the only one. Present the routes via `AskUserQuestion` unless Bernard has already said to remedy — a standing "haz remedy" is authorization, do not re-ask (per slash-command-obedience).
 
 3. **Ping queue** (human PRs blocked on their author, or NEEDS-REVIEW PRs Bernard chose not to review this session): draft the 1-line Slack ping per PR (bare URL, English, channel rules apply), show the drafts, send only on Bernard's go.
 
@@ -259,7 +265,7 @@ After routing, show:
 
 🔁 Stagnant (≥2 reviews, still open): #X, #Y — these need a closure decision next session, not another review.
 ```
-A session where MERGED and "Remedy dispatched" are both zero and "Findings posted" is the only nonzero count means the command reviewed without closing — say that explicitly instead of dressing it up as progress.
+A session where MERGED and "Remedy dispatched" are both zero and "Findings posted" is the only nonzero count means the command reviewed without closing — say that explicitly instead of dressing it up as progress. **Never phrase the outcome as "N PRs not approvable" and stop** — that is the failure this command exists to kill. Blocking findings are an instruction to dispatch remedy (which makes them approvable), not a terminal verdict. The correct closing sentence on a batch with findings is "N PRs with findings → remedy dispatched (routes: …) → approvable after remedy", never "none approvable".
 
 ## Rules
 
@@ -279,6 +285,7 @@ A session where MERGED and "Remedy dispatched" are both zero and "Findings poste
 14. **Use the native `AskUserQuestion` tool** for batch selection (Phase 1 step 8) and closure routing (Phase 3.5) — never free-text "which ones?" questions buried in prose.
 15. **Merges and remedy dispatches are per-target authorizations.** An AskUserQuestion selection authorizes exactly the PRs selected in this session, nothing more. `/remedy-mr` is user-invoked only — print the invocation for Bernard, never simulate or substitute it.
 16. **"Covered" is defined by approval on the CURRENT head, not by the presence of any approval.** A stale approval (head moved since it was given) does NOT cover a PR — it still NEEDS REVIEW (delta). Compute `approved_on_head` (`commit_id == headRefOid`), never a bare approval count.
+17. **Findings → remedy → approvable. "Not approvable" is never a terminal state.** Every REQUEST_CHANGES verdict must be paired with a remedy route (local `/remedy-mr` printed for Bernard, and/or CI `/ai-remedy approve` where the workflow exists) so the PR is driven to green — for HUMAN PRs as well as VAIR. Reporting a PR or a batch as "none approvable" and stopping is the failure this rule forbids: the command's mission is to MAKE things approvable, and remedy is the lever. A PLAUSIBLE-but-unconfirmed finding still routes to remedy (the thread flags the uncertainty and the remedy agent confirms-or-fixes); do not withhold remedy for want of 100% certainty.
 
 ## Severity Levels
 
