@@ -19,6 +19,7 @@ This command launches an **interactive wizard** that guides the user step by ste
 3. **ALWAYS** show a preview of the generated command BEFORE writing the file
 4. **ALWAYS** verify that the command name doesn't collide with an existing one (when creating)
 5. **ALWAYS** read the existing command completely before modifying it
+6. **NEVER edit a command in a single location in isolation.** The same command file is mirrored across MULTIPLE repos (see STEP 0 "Duplicate-copy detection"). Editing one copy while the others drift is how a command silently "doesn't change" — the copy that runs on the user's machine is not the copy you edited. Every create/modify/delete MUST (a) detect all copies up-front, (b) apply the change to ALL real copies so they end byte-identical, and (c) close with the propagation + sync step (FILE GENERATION step 5). A change that touches one copy and forgets the rest is a FAILED run, even if that one copy is correct.
 
 ---
 
@@ -51,6 +52,36 @@ Before the first question, Claude MUST scan BOTH command sources:
 Global commands live in the repo `BernardUriza/BernardUriza` (profile repo) and are synced via symlink. If the user wants to create/modify a universal command, write to `~/.claude/commands/`. If it's specific to the current project, write to `.claude/commands/`.
 
 This inventory is used in subsequent questions to offer informed options.
+
+### STEP 0.5: Duplicate-copy detection (MANDATORY — the same command lives in ≥4 repos)
+
+`~/.claude/commands/` is a **symlink** to the profile repo `~/Documents/BernardUriza/claude-commands/` — those two paths are the SAME file (same inode). But the same command name is ALSO mirrored, as independent divergent copies, into several other repos that distribute commands/rules to the team and the AI reviewer (VAIR). **Before touching any command, find every copy and check whether they have drifted.** Known real stores (ignore worktrees, `jobs/`, `tmp/`, and package caches — those are ephemeral):
+
+| Store | Path | Audience |
+|-------|------|----------|
+| Profile repo (**runs on Bernard's machine**) | `~/Documents/BernardUriza/claude-commands/` (= `~/.claude/commands/` symlink) | Bernard, all repos |
+| `.github` org repo | `<repos>/Visalaw/github-org/ai-rules/commands/` | Team / VAIR distribution |
+| dotgithub clone | `<repos>/dotgithub/ai-rules/commands/` | Team / VAIR distribution |
+| engineering-notes | `<repos>/Visalaw/engineering-notes/workflow/claude-commands/` | Team workflow docs |
+| Project-local | `<project>/.claude/commands/` | The one repo it lives in |
+
+Run the detection and drift check:
+```bash
+# 1. Find every copy of the target command across the known stores
+find ~/Documents/BernardUriza/claude-commands \
+     /d/repos/Visalaw/github-org/ai-rules/commands \
+     /d/repos/dotgithub/ai-rules/commands \
+     /d/repos/Visalaw/engineering-notes/workflow/claude-commands \
+     /d/repos/Visalaw/.claude/commands \
+     -maxdepth 1 -iname '<name>.md' 2>/dev/null
+
+# 2. Compare their content hashes — if they differ, they have DRIFTED
+for f in <the paths from step 1>; do printf '%s  %5s lines  %s\n' "$(sha1sum < "$f" | cut -c1-10)" "$(wc -l < "$f")" "$f"; done
+```
+- **All hashes equal** → in sync; proceed and remember to update ALL of them.
+- **Hashes differ** → they have DRIFTED. Report the drift to the user with a table (path / mtime / hash / size), identify **which copy actually runs** (the profile repo is what `/<name>` executes on Bernard's machine), and ask via `AskUserQuestion` which version is canonical BEFORE editing. Never assume; never silently pick one. Reconcile to ONE improved version, then propagate it to all copies (FILE GENERATION step 5).
+
+This drift is the exact failure that made a "modified" command appear unchanged: the edit landed on a team-distribution copy while the profile copy that actually runs was never touched. STEP 0.5 exists to make that impossible.
 
 ---
 
@@ -427,13 +458,30 @@ head -3 .claude/commands/[name].md
 
 Report: "Command `/name` saved — N lines. Invoke it with `/name` in any session."
 
-### 5. If it's a GLOBAL command: Commit to profile repo
+### 5. Propagate to ALL copies + sync (MANDATORY for global commands — never profile-only)
+
+A global command is NOT done when only the profile copy is written. Propagate the identical file to every real store detected in STEP 0.5 so they end byte-identical, then run the sync command and commit the shared repos.
 
 ```bash
-cd ~/Documents/BernardUriza && git add -A && git commit -m "feat: add /name command" && git push
+# a. Propagate the canonical file to every other real copy (byte-identical)
+SRC=~/Documents/BernardUriza/claude-commands/[name].md
+for dst in \
+  /d/repos/Visalaw/github-org/ai-rules/commands/[name].md \
+  /d/repos/dotgithub/ai-rules/commands/[name].md ; do
+  [ -e "$dst" ] && cp "$SRC" "$dst"   # only overwrite stores that already carry this command; ask before ADDING it to a new store
+done
+
+# b. Verify all hashes now match (the go/no-go gate)
+for f in "$SRC" /d/repos/Visalaw/github-org/ai-rules/commands/[name].md /d/repos/dotgithub/ai-rules/commands/[name].md; do
+  [ -e "$f" ] && printf '%s  %s\n' "$(sha1sum < "$f" | cut -c1-12)" "$f"
+done
 ```
 
-Report: "Command synced to the profile repo. On other machines, `cd ~/Documents/BernardUriza && git pull` to update."
+Then push each store the change touched:
+- **Profile repo** — this is what `/sync-commands` publishes. Run `/sync-commands` (or `cd ~/Documents/BernardUriza && git add -A && git commit -m "feat(commands): <name> — <change>" && git push`). Never hand-write an attribution footer in git output.
+- **Shared repos (`github-org`, `dotgithub`, `engineering-notes`)** — these are TEAM repos. Committing is autonomous, but a **push to their protected/`main` branch is gated** — surface it as an `AskUserQuestion` for Bernard's go, or push to a feature branch + open a draft PR. Never force a shared-repo `main` push as a side effect of a command edit. Per git-safety, a shared-repo change is NOT "done" until committed **and** pushed — do not report completion while it sits local.
+
+Report: which copies were updated, the matching hash, and the exact sync/commit state of each repo (pushed / committed-local / awaiting Bernard's go). If any copy could not be reconciled, say so explicitly — a silent partial propagation is the drift bug returning.
 
 ---
 
@@ -642,11 +690,15 @@ Optional but recommended sections:
 
 When the user chooses "Modify existing":
 
-### 1. Read complete command
+### 1. Detect all copies, then read the canonical one
+
+Run STEP 0.5 duplicate-copy detection for `[name]` FIRST. If the copies have drifted, resolve which is canonical (per STEP 0.5) before reading. Then read the canonical copy completely:
 
 ```bash
-cat .claude/commands/[name].md
+cat ~/Documents/BernardUriza/claude-commands/[name].md   # the copy that runs for Bernard
 ```
+
+Never `cat` a single project-local copy and assume it is the whole story — a modify run that reads one copy and edits one copy is the drift bug this command exists to prevent.
 
 ### 2. Show summary
 

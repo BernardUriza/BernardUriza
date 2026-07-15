@@ -6,77 +6,85 @@ ARGUMENTS: $ARGUMENTS
 
 **The goal is CLOSURE, not reviews.** A review is a means; the end state of every PR this command touches is one of: MERGED, remedy dispatched, author pinged on blocking findings, or explicitly deferred by Bernard. A session that only stacks another review on a PR that already had one is a FAILED session.
 
+**Assignment is NOT a filter — the whole team is tiny and forgets to request reviewers.** The old design gated the actionable queue on `--review-requested=@me`. That was correct when the org had ~80 interns and reviewer assignment was disciplined; today it strands almost every PR, because nobody remembers to add Bernard as a reviewer and the PRs then rot for months with no review at all. **The actionable universe is EVERY open PR that lacks a current, congruent review — whether or not Bernard is the assigned reviewer.** "Assigned to Bernard" is at most a light sort hint and a badge in the table; it is never a gate and never a reason to skip or deprioritize a PR. If a PR is open and unreviewed, Bernard can review it.
+
 > Anchor 2026-07-13: `visalaw-gen-backend#1544` accumulated 14 of Bernard's reviews over a month and stayed open; `visalaw-gen-standalone-services#303/#304` were each APPROVED twice (07-07 and again 07-11) and never merged. The command produced reviews forever and closed nothing. Phase 2 step 0.5 and Phase 3.5 exist to kill exactly that.
+>
+> Anchor 2026-07-15: the command still led with `--review-requested=@me` as the primary bucket, so a scan surfaced only 4 PRs (the ones where someone happened to assign Bernard) while ~25 other open, unreviewed PRs sat invisible. Bernard: "el equipo es muy malo para asignarme como revisador… quita la métrica de que si está asignado a mí o no. Eso ya no importa." This whole file was rewritten to make "no current review" — not "assigned to me" — the primary axis.
 
 Every PR that enters Phase 2 must exit with a **next-action**, never with just a verdict.
 
+## Definitions — "needs review" vs "covered"
+
+A congruent review = an `APPROVED` review whose `commit_id` equals the PR's **current** `headRefOid`. Applied per PR:
+
+- **NEEDS REVIEW** (actionable): the PR has **no `APPROVED` review on the current head** — i.e. zero approvals, OR the only approvals are on a stale commit (head moved since), OR the latest review is `CHANGES_REQUESTED` / `COMMENTED`. These are the queue, regardless of who (if anyone) is the assigned reviewer.
+- **COVERED** (not actionable): the PR has ≥1 `APPROVED` review on the current head. Route it to closure (merge/ping), never re-review it.
+
+The assigned reviewer (`reviewRequests`) does not enter this classification at all. It is displayed as an **Assigned** badge for awareness only.
+
 ## Instructions
 
-### Phase 1: Discovery — Find All PRs Requesting Your Review
+### Phase 1: Discovery — Find All Open PRs Lacking a Current Review
 
-1. **Query all Visalaw repos** for PRs where the current user is a requested reviewer:
-   ```bash
-   gh search prs --review-requested=@me --state=open --owner=Visalaw --json number,title,repository,author,createdAt,url,labels
-   ```
-
-2. **Separate into three categories:**
-   - **Human PRs** — from real teammates. These get full review.
-   - **VAIR PRs** — from `vair-visalaw-ai-reviewer[bot]`. These are AI-authored work YOU dispatched and need full review (same treatment as human PRs, NOT summary).
-   - **Dependabot/Actions PRs** — from `dependabot[bot]` or `github-actions[bot]`. These get a quick summary only.
-
-3. **Liveness + review status check** — for each human PR, fetch state + mergeStateStatus + reviews in ONE call. NEVER trust the `gh search` snapshot — PRs close/merge between queries.
-   ```bash
-   gh pr view <N> --repo Visalaw/<repo> --json state,isDraft,mergeable,mergeStateStatus,reviews,statusCheckRollup --jq '{state, draft: .isDraft, mergeable, mergeStateStatus, approvals: [.reviews[] | select(.state == "APPROVED")] | length, checks_pass: ([.statusCheckRollup[]? | select(.conclusion != "SUCCESS" and .conclusion != null and .conclusion != "SKIPPED" and .conclusion != "NEUTRAL")] | length == 0)}'
-   ```
-   - **If `state != "OPEN"`** → PR is CLOSED or MERGED since discovery. **Discard it immediately.** Collect these in a "dead PRs" bucket for the summary note.
-   - **If `state == "OPEN"` AND ≥1 approval AND all checks pass** → do NOT re-review it and do NOT silently discard it. Move it to the **Ready-to-merge queue** (Phase 3.5) — an approved PR left rotting is the #303/#304 failure mode.
-   - Show routed/discarded PRs in two separate notes:
-     - `☠️ Skipped N PRs (closed/merged since discovery): #X (CLOSED), #Y (MERGED)`
-     - `✅ Moved N PRs to the Ready-to-merge queue (approved + checks passing): #X, #Y`
-
-4. **Query ALL open human PRs across Visalaw repos (team awareness):**
+1. **PRIMARY query — the actionable universe is ALL open human PRs across Visalaw**, not just the ones assigned to you:
    ```bash
    gh search prs --state=open --owner=Visalaw --json number,title,repository,author,createdAt,url,labels -- -author:app/dependabot -author:app/github-actions
    ```
-   - Remove PRs already in the "need your review" list and your own PRs
-   - For each remaining PR, get state + review status in ONE call:
-     ```bash
-     gh pr view <N> --repo Visalaw/<repo> --json state,isDraft,mergeable,mergeStateStatus,reviews,statusCheckRollup,reviewRequests --jq '{state, draft: .isDraft, mergeable, mergeStateStatus, approvals: [.reviews[] | select(.state == "APPROVED")] | length, changes_requested: [.reviews[] | select(.state == "CHANGES_REQUESTED")] | length, pending_reviewers: [.reviewRequests[].login] | join(", "), checks_pass: ([.statusCheckRollup[]? | select(.conclusion != "SUCCESS" and .conclusion != null and .conclusion != "SKIPPED" and .conclusion != "NEUTRAL")] | length == 0)}'
-     ```
-   - **Drop any PR where `state != "OPEN"`** — closed/merged PRs do not belong in any team-awareness table.
+   This is the source list. Do NOT start from `--review-requested=@me` — that query is now only a *badge source* (step 2), never the filter.
 
-5. **Query the user's own PRs awaiting review from others:**
+2. **Tag which PRs are formally assigned to you** (badge only, NOT a filter). Run it once and keep the set of numbers to mark an `Assigned` column:
+   ```bash
+   gh search prs --review-requested=@me --state=open --owner=Visalaw --json number,repository
+   ```
+   A PR being in this set changes nothing about whether it is actionable — it only earns a 👤 badge.
+
+3. **Categorize each PR from step 1:**
+   - **Human PRs** — from real teammates. These get full review when they NEED REVIEW.
+   - **VAIR PRs** — from `vair-visalaw-ai-reviewer[bot]`. AI-authored work Bernard dispatched; full review (same as human PRs, NOT summary).
+   - **Dependabot/Actions PRs** — from `dependabot[bot]` or `github-actions[bot]`. Quick summary only.
+
+4. **Liveness + review-currency check — for EVERY PR, fetch state + mergeStateStatus + reviews + head in ONE call.** NEVER trust the `gh search` snapshot — PRs close/merge between queries. This call also computes whether the PR is COVERED (approval on current head) or NEEDS REVIEW:
+   ```bash
+   gh pr view <N> --repo Visalaw/<repo> --json state,isDraft,mergeable,mergeStateStatus,reviews,statusCheckRollup,reviewRequests,headRefOid \
+     --jq '{state, draft: .isDraft, mergeable, mergeStateStatus, head: (.headRefOid[0:8]),
+            approved_on_head: ([.reviews[] | select(.state=="APPROVED" and .commit_id==.headRefOid)] | length),
+            approvals_any: ([.reviews[] | select(.state=="APPROVED")] | length),
+            changes_requested: ([.reviews[] | select(.state=="CHANGES_REQUESTED")] | length),
+            assigned_reviewers: ([.reviewRequests[].login] | join(", ")),
+            checks_pass: ([.statusCheckRollup[]? | select(.conclusion != "SUCCESS" and .conclusion != null and .conclusion != "SKIPPED" and .conclusion != "NEUTRAL")] | length == 0)}'
+   ```
+   Classify each:
+   - **If `state != "OPEN"`** → CLOSED/MERGED since discovery. **Discard.** Collect for the dead-PR note.
+   - **If `approved_on_head >= 1`** → **COVERED.** Do NOT re-review. If checks pass and `mergeStateStatus == "CLEAN"` → **Ready-to-merge queue** (Phase 3.5). Otherwise → closure/ping queue. An approved-and-current PR left rotting is the #303/#304 failure mode.
+   - **Else (`approved_on_head == 0`)** → **NEEDS REVIEW.** Into the actionable queue — *regardless of `assigned_reviewers`*. (`approvals_any >= 1` with `approved_on_head == 0` means a stale approval; still needs a fresh look at the new head.)
+   - Print the routing notes:
+     - `☠️ Discovery→now drift: N PRs closed/merged. Excluded: #X (CLOSED), #Y (MERGED).`
+     - `✅ Covered (approved on current head): #X, #Y — routed to closure, not re-reviewed.`
+
+5. **Query the user's own PRs awaiting review from others** (informational — Bernard doesn't review his own):
    ```bash
    gh search prs --author=@me --state=open --owner=Visalaw --json number,title,repository,createdAt,url,labels
    ```
-   For each, get state + review + check status in ONE call:
-   ```bash
-   gh pr view <N> --repo Visalaw/<repo> --json state,isDraft,mergeable,mergeStateStatus,reviews,statusCheckRollup,reviewRequests --jq '{state, draft: .isDraft, mergeable, mergeStateStatus, approvals: [.reviews[] | select(.state == "APPROVED")] | length, changes_requested: [.reviews[] | select(.state == "CHANGES_REQUESTED")] | length, pending_reviewers: [.reviewRequests[].login] | join(", "), checks_pass: ([.statusCheckRollup[]? | select(.conclusion != "SUCCESS" and .conclusion != null and .conclusion != "SKIPPED" and .conclusion != "NEUTRAL")] | length == 0)}'
-   ```
-   - **Drop any PR where `state != "OPEN"`** — your own closed/merged PRs are done, don't waste table space on them.
+   For each, the same `gh pr view` snapshot from step 4. Drop any where `state != "OPEN"`.
 
-5b. **Query VAIR-authored PRs (AI-dispatched work in your queue):**
+5b. **Query VAIR-authored PRs explicitly** (they also appear in step 1, but this catches any the search missed):
    ```bash
    gh search prs --author=app/vair-visalaw-ai-reviewer --state=open --owner=Visalaw --json number,title,repository,createdAt,url,labels
    ```
-   For each, get the same state + review + check snapshot used for human PRs:
-   ```bash
-   gh pr view <N> --repo Visalaw/<repo> --json state,isDraft,mergeable,mergeStateStatus,reviews,statusCheckRollup,reviewRequests --jq '{state, draft: .isDraft, mergeable, mergeStateStatus, approvals: [.reviews[] | select(.state == "APPROVED")] | length, changes_requested: [.reviews[] | select(.state == "CHANGES_REQUESTED")] | length, pending_reviewers: [.reviewRequests[].login] | join(", "), checks_pass: ([.statusCheckRollup[]? | select(.conclusion != "SUCCESS" and .conclusion != null and .conclusion != "SKIPPED" and .conclusion != "NEUTRAL")] | length == 0)}'
-   ```
-   - **Drop any PR where `state != "OPEN"`** — closed/merged VAIR PRs do not belong in the table.
-   - VAIR PRs flow through the SAME Phase 2 full review as human PRs (codex peer, full diff read, inline comments). The "Bot PRs" summary path is for dependabot/github-actions only.
+   Same snapshot per PR. VAIR PRs flow through the SAME Phase 2 full review as human PRs.
 
-6. **Display summary tables** sorted by repo, then by age (oldest first). **EXCEPTION: the VAIR PRs table is sorted DRAFT-first** (drafts are AI-dispatched work-in-progress that needs Bernard's triage before anything else — they are the highest priority in the queue), then by age within each group. EVERY table includes a **Merge** column so dead/blocked PRs are visible at a glance — no more "limpio" claims about a CLOSED PR:
+6. **Display summary tables** sorted by repo, then by age (oldest first — the longest-rotting PR is the highest priority). **EXCEPTION: the VAIR PRs table is sorted DRAFT-first** (AI-dispatched WIP needs Bernard's triage before anything else), then by age. EVERY table includes a **Merge** column so dead/blocked PRs are visible at a glance, and the "needs review" table includes an **Assigned** column (badge only):
 
    ```
-   ## Human PRs (need your review)
+   ## Human PRs — NEED REVIEW (no approval on current head)   ← the actionable queue
+   | # | Repo | PR | Author | Title | Assigned | Merge | Checks | Age |
+   |---|------|-----|--------|-------|----------|-------|--------|-----|
+   Assigned values: 👤 you | 🧑 <someone-else> | — nobody   (badge only — never a filter)
+
+   ## Human PRs — COVERED (approved on current head)   ← closure only, no re-review
    | # | Repo | PR | Author | Title | Merge | Age |
    |---|------|-----|--------|-------|-------|-----|
-
-   ## Human PRs (don't need your review)
-   | # | Repo | PR | Author | Title | Review | Merge | Age |
-   |---|------|-----|--------|-------|--------|-------|-----|
-   Review values: ✅ Approved | 🔄 Changes Requested | ⏳ Pending Review | 📝 Draft
 
    ## Your PRs (waiting on others)
    | # | Repo | PR | Title | Review | Merge | Pending Reviewers | Age |
@@ -87,7 +95,6 @@ Every PR that enters Phase 2 must exit with a **next-action**, never with just a
    | # | Repo | PR | Title | Review | Merge | Age |
    |---|------|-----|-------|--------|-------|-----|
    Review values: 📝 Draft (LIST FIRST — top priority) | ✅ Approved | 🔄 Changes Requested | ⏳ Pending Review
-   Sort order: drafts (`isDraft: true`) at the top sorted by age, then non-drafts sorted by age.
 
    ## Bot PRs (Dependabot / github-actions — summary only)
    | # | Repo | PR | Title | Merge | Age |
@@ -106,11 +113,9 @@ Every PR that enters Phase 2 must exit with a **next-action**, never with just a
    | `HAS_HOOKS` | 🪝 HOOKS | Clean but has hooks pending |
    | `mergeable=CONFLICTING` | 💥 CONFLICTS | Fallback when mergeStateStatus is unreliable |
 
-   **Above the tables**, always print the dead-PR note from step 3 (if any): `☠️ Discovery→now drift: N PRs closed/merged. Excluded: #X (CLOSED), #Y (MERGED).`
-
 7. **If ARGUMENTS is provided**, filter the tables to only show PRs matching the argument (repo name, author, PR number, or keyword in title).
 
-8. **Ask the user which PRs to review — with the native `AskUserQuestion` tool, never a free-text question.** Options: all human PRs in batch / only VAIR PRs / specific numbers from the table / skip straight to closure routing (Phase 3.5) when the queues are dominated by already-reviewed PRs.
+8. **Ask the user which PRs to review — with the native `AskUserQuestion` tool, never a free-text question.** Build the options from the **NEEDS REVIEW** table (which now spans the whole org, not just assigned-to-you). Suggested options: all human PRs oldest-first / only VAIR PRs / only the ones assigned to you (👤) as a subset / specific numbers from the table / skip straight to closure routing (Phase 3.5) when the queues are dominated by COVERED PRs. **Never present "assigned to you" as the only or default review set — the default is the full unreviewed queue.**
 
 ### Phase 2: Batch Review — Read and Analyze Each PR
 
@@ -222,9 +227,9 @@ After all PRs are analyzed and the user has weighed in on flagged items:
 
 ### Phase 3.5: Closure Routing — every PR leaves with a next-action
 
-This phase is the point of the command. Route every PR that reached Phase 2 (or was routed here by step 0.5 / Phase 1):
+This phase is the point of the command. Route every PR that reached Phase 2 (or was routed here as COVERED by Phase 1 / by step 0.5):
 
-1. **Ready-to-merge queue** (approved + checks green + `mergeStateStatus == CLEAN`): present the queue via `AskUserQuestion` (multiSelect) — "which of these do I merge now?". Bernard's selection IS the explicit merge authorization for exactly those targets:
+1. **Ready-to-merge queue** (approved on current head + checks green + `mergeStateStatus == CLEAN`): present the queue via `AskUserQuestion` (multiSelect) — "which of these do I merge now?". Bernard's selection IS the explicit merge authorization for exactly those targets:
    ```bash
    gh pr merge <N> --repo Visalaw/<repo> --squash
    ```
@@ -234,7 +239,7 @@ This phase is the point of the command. Route every PR that reached Phase 2 (or 
    - **Local**: Bernard types `/remedy-mr <repo>#<N>` — it is `disable-model-invocation`, Claude cannot fire it; print the exact invocation for him to type.
    - **CI**: post the PR comment `/ai-remedy` (or `/ai-remedy approve`) — from PowerShell or `MSYS_NO_PATHCONV=1`, NEVER bare Git Bash (leading-slash path-mangling turns it into a silent no-op), then verify the "AI Commands" run is non-`skipped`.
 
-3. **Ping queue** (human PRs blocked on their author or another reviewer): draft the 1-line Slack ping per PR (bare URL, English, channel rules apply), show the drafts, send only on Bernard's go.
+3. **Ping queue** (human PRs blocked on their author, or NEEDS-REVIEW PRs Bernard chose not to review this session): draft the 1-line Slack ping per PR (bare URL, English, channel rules apply), show the drafts, send only on Bernard's go.
 
 4. **Stagnation flags**: any OPEN PR that already carries ≥2 of your own reviews is flagged `🔁 STAGNANT — needs a closure decision, not another review` and goes into the AskUserQuestion menu with options: merge / remedy / close PR / defer.
 
@@ -249,6 +254,7 @@ After routing, show:
 - Author pinged: N PRs
 - Deferred by Bernard: N PRs
 - ♻️ Re-review skipped (head unchanged): N PRs
+- ✅ Covered (already approved on head): N PRs
 - ☠️ Dead since discovery: N PRs
 
 🔁 Stagnant (≥2 reviews, still open): #X, #Y — these need a closure decision next session, not another review.
@@ -258,20 +264,21 @@ A session where MERGED and "Remedy dispatched" are both zero and "Findings poste
 ## Rules
 
 1. **`state` and `mergeStateStatus` are MANDATORY on every `gh pr view`.** The `gh search prs --state=open` snapshot is stale the second it prints — PRs close/merge constantly. Always include `state,isDraft,mergeable,mergeStateStatus` in the `--json` field list. Never call a PR "clean" without verifying `state == "OPEN"` AND `mergeStateStatus == "CLEAN"`. If you ever catch yourself about to say "4 limpios", stop and re-run the liveness check. **This is why this command exists — to never again tell the user a PR is ready when it's actually CLOSED, MERGED, BLOCKED, DIRTY, or UNKNOWN.**
-2. **Never approve without reading the full diff.** A quick "LGTM" is not a review.
-3. **Security findings are always blocking** — never approve a PR with auth/PII/tenant issues.
-4. **Dependabot and github-actions PRs get a summary, not a full review** — list the dep name, version bump, and whether it's a major/minor/patch. The user decides whether to approve or ignore. **VAIR PRs (`vair-visalaw-ai-reviewer[bot]`) are NOT in this category** — they are AI-authored real work and get full review same as human PRs.
-5. **Use inline comments, never general PR comments** — findings must point to the exact file and line.
-6. **Direct, constructive tone** — "This needs a null check" not "Perhaps we could consider adding validation."
-7. **Check for AI review comments already posted** — don't duplicate findings that the VAIR bot already flagged. Reference them if agreeing.
-8. **Always ask before submitting** — show the review text and wait for the user's go-ahead.
-9. **Flag scope creep** — if a PR touches files outside its stated purpose, call it out.
-10. **Respect seniority** — interns get constructive feedback, senior devs get direct technical notes.
+2. **Assignment is never a filter.** The actionable queue is EVERY open PR with no `APPROVED` review on its current head, whether or not Bernard is a requested reviewer. `--review-requested=@me` is a badge source only. Never scope the review universe to assigned-to-you; never deprioritize or skip an unreviewed PR because someone else (or nobody) is the assigned reviewer. Surfacing only the assigned subset is the 2026-07-15 failure — forbidden.
+3. **Never approve without reading the full diff.** A quick "LGTM" is not a review.
+4. **Security findings are always blocking** — never approve a PR with auth/PII/tenant issues.
+5. **Dependabot and github-actions PRs get a summary, not a full review** — list the dep name, version bump, and whether it's a major/minor/patch. The user decides whether to approve or ignore. **VAIR PRs (`vair-visalaw-ai-reviewer[bot]`) are NOT in this category** — they are AI-authored real work and get full review same as human PRs.
+6. **Use inline comments, never general PR comments** — findings must point to the exact file and line.
+7. **Direct, constructive tone** — "This needs a null check" not "Perhaps we could consider adding validation."
+8. **Check for AI review comments already posted** — don't duplicate findings that the VAIR bot already flagged. Reference them if agreeing.
+9. **Always ask before submitting** — show the review text and wait for the user's go-ahead.
+10. **Flag scope creep** — if a PR touches files outside its stated purpose, call it out.
 11. **Codex peer is advisory, never authoritative.** Codex's verdict is a second opinion, not a tiebreaker. Bernard always makes the final call. If verdicts diverge, surface the divergence explicitly — never silently pick one side. If codex is unavailable, the review proceeds with Claude's verdict alone (noted as `Codex peer unavailable`).
 12. **Closure over review.** Never leave a reviewed PR without a routed next-action (merge proposed / remedy dispatched / author pinged / explicit deferral by Bernard). Review count is not a success metric; closed PRs are.
 13. **Never re-review an unchanged head.** Phase 2 step 0.5 is mandatory. Re-reviewing a PR whose head SHA equals your last review's `commit_id` is the #1544 anti-pattern (14 reviews, 1 month, still open) — forbidden.
 14. **Use the native `AskUserQuestion` tool** for batch selection (Phase 1 step 8) and closure routing (Phase 3.5) — never free-text "which ones?" questions buried in prose.
 15. **Merges and remedy dispatches are per-target authorizations.** An AskUserQuestion selection authorizes exactly the PRs selected in this session, nothing more. `/remedy-mr` is user-invoked only — print the invocation for Bernard, never simulate or substitute it.
+16. **"Covered" is defined by approval on the CURRENT head, not by the presence of any approval.** A stale approval (head moved since it was given) does NOT cover a PR — it still NEEDS REVIEW (delta). Compute `approved_on_head` (`commit_id == headRefOid`), never a bare approval count.
 
 ## Severity Levels
 
