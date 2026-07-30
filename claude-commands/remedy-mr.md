@@ -1,5 +1,5 @@
 ---
-description: Remediate a PR up to the green squash-merge button (stops before merge)
+description: Remediate a PR — goal declared up-front (green button, or merge-through when every gate passes)
 argument-hint: [pr-id | url | repo#number]
 model: opus
 allowed-tools: Read, Edit, Write, Bash, Grep, Glob, AskUserQuestion, WebFetch
@@ -14,7 +14,7 @@ ARGUMENTS: `<pr-id>` — accepts PR number (`546`), full URL (`https://github.co
 
 **`/remedy-mr` is user-invoked only.** It is NOT automatic. When Bernard types `/remedy-mr 546` he is consciously authorizing a big, autonomous batch of work: branch reset, docstring/code fixes on a teammate's branch, force-push, metadata rewrite, approval. The trade-off is that the command has a contract with him: every step below MUST execute — no shortcuts, no "salté esta verificación porque parecía obvia."
 
-The command **stops at the green squash-and-merge button**. It does NOT click it. Bernard decides whether to merge.
+The command has **two goal modes, declared up-front at Phase 0 (step 4)**: **green-button** (default contract — stop at approved + CLEAN, Bernard clicks merge) or **merge-through** (Phase 8 executes automatically once every gate passes). The goal is resolved ONCE at the start — from the invocation args if they already declare it, otherwise via AskUserQuestion — never re-asked at the end, and never left as an easy-to-miss prose "¿le doy?" in the final report.
 
 The command **may also do nothing** — if after full review there's nothing to remedy, it approves with a clean LGTM comment, reports "no remedy needed", and stops. That's a valid outcome.
 
@@ -76,6 +76,22 @@ Each of those phrases is a trigger that either Claude or Bernard interprets late
    - `state: MERGED` → "Already merged — nothing to remedy. Commit: `<oid>`."
    - `state: CLOSED` → "Closed, not merged. Reopen first if remedy is intended."
    - `isDraft: true` → "Draft PR. Author may still be writing. Proceed only if Bernard explicitly re-confirms."
+4. **Goal gate — resolve the end-state ONCE, now, before any work:**
+   - **If the invocation args already declare the goal, that IS the answer — do NOT ask** (per
+     `15-slash-command-obedience`: never re-confirm what's already authorized). Merge-through
+     signals: "mergea", "merge it", "hazlo ya", "sin esperarme", "hasta el final". Green-button
+     signals: "no mergees", "déjalo en el botón", "solo remedia".
+   - **Otherwise fire AskUserQuestion** (header "Goal", two options):
+     - **Green button (Recommended)** — full remedy, approve, stop at approved + CLEAN;
+       Bernard executes the merge (the classic contract).
+     - **Merge-through** — same full remedy + all gates (tsc, tests, threads = 0 unresolved,
+       CI green, mergeStateStatus CLEAN); when everything passes, Phase 8 runs automatically
+       with no further ask. Any failed gate still STOPS — merge-through authorizes the merge,
+       never a shortcut past a gate.
+   - Record the declared goal; Phases 7–8 obey it. This gate exists because the end-of-turn
+     prose "¿le doy?" gets missed (`20-honesty` pending-decisions rule) and because making
+     Bernard smuggle the exception into the args (2026-07-30, admin-dashboard #201) is the
+     wrong interface for a recurring fork.
 
 ### Phase 0.5 — Existing review threads audit (predecessors)
 
@@ -384,7 +400,7 @@ Every remedied PR leaves with proper metadata. All via `gh api` (not `gh pr edit
    gh api repos/<owner>/<repo>/pulls/<n>/reviews --method POST -f event="APPROVE" -f body="<thoughtful comment>"
    ```
 
-### Phase 7 — Report & stop (DO NOT MERGE)
+### Phase 7 — Report (merge only under a declared merge-through goal)
 
 Final state report to Bernard:
 
@@ -407,9 +423,14 @@ Final state report to Bernard:
 No merge executed. Your call.
 ```
 
-**Do not invoke `gh pr merge` unless Bernard explicitly confirms.** The command ends here.
+**Goal-dependent ending:**
+- **Green-button goal** → this report IS the ending. Do not invoke `gh pr merge`; Bernard decides.
+- **Merge-through goal (declared at Phase 0 step 4)** → verify every gate one final time (approved,
+  0 unresolved threads, CI green, `mergeStateStatus: CLEAN`); if ALL pass, proceed directly to
+  Phase 8 without asking again — the Phase 0 declaration was the authorization. If ANY gate fails,
+  STOP and report: merge-through never overrides a failed gate.
 
-### Phase 8 (optional, only if Bernard says "merge")
+### Phase 8 (merge — runs automatically under the merge-through goal, or when Bernard says "merge" after a green-button report)
 
 1. `gh pr merge <n> --repo <owner>/<repo> --squash --subject "<exact-title> (#<n>)" --delete-branch`
 2. `cd <repo> && git fetch origin <base-branch> && git reset --hard origin/<base-branch>` — sync local-testing
@@ -424,7 +445,7 @@ No merge executed. Your call.
 5. **`--force-with-lease` keyed to the remote SHA captured at Phase 2.6**, not bare `--force-with-lease`. Prevents silent clobber if the author pushed in parallel.
 6. **Curl before push for backend changes.** Touch `/tmp/claude-curl-verified` is a hook bypass for genuinely-frontend work only.
 7. **tsc MUST be 0 before push.** Tests MUST be green. No "skipping this test, it's flaky."
-8. **Don't merge.** The contract ends at "approved, CI clean, ready to merge." User decides.
+8. **Merge only per the Phase 0 goal gate.** Green-button goal: the contract ends at "approved, CI clean, ready to merge" — user decides. Merge-through goal: Phase 8 runs automatically ONLY when every gate passes; a failed gate stops regardless of goal.
 9. **No Co-Authored-By lines in commits.** Verify with `git log -1 --format=fuller` before push.
 10. **All commits, PR titles, PR bodies, review comments in English.** Español only in conversation with Bernard.
 11. **If anything unexpected appears at any phase, STOP and report.** Unexpected untracked file, stale local-testing, merge conflict, CI failure, approvals from others already present — each is a signal to pause, not to work around.
@@ -440,7 +461,7 @@ No merge executed. Your call.
 | `git pull` on the teammate's branch | Creates merge commits in their branch history — ugly, also complicates rebase | Work on local-testing, push via `<source>:<dest>` refspec |
 | Squash-merging without `--subject` when branch has >1 commit | Squash message becomes the author's first commit message, losing all your remedy context | Always pass `--subject "<conventional-title> (#<n>)"` |
 | `gh pr edit --title` / `--body` | Silently fails on Projects-classic deprecation | `gh api repos/.../pulls/<n> --method PATCH -f title=... -f body=...` |
-| Reviewing, approving, and merging in one sweep | Robs the human of the squash-merge decision they explicitly reserved | Stop at approved. Report. Wait. |
+| Merging without a declared merge-through goal | Robs the human of the squash-merge decision they explicitly reserved | Resolve the goal at Phase 0 step 4; under green-button, stop at approved. Report. Wait. |
 | "Fixing" a PR that has approvals from teammates already | Your force-push dismisses their reviews (on frontend: `dismiss_stale_reviews_on_push: true`) | STOP, ask Bernard: "Katie already approved — proceed anyway?" |
 | Suggesting "follow-up PR with `Part of VISAL-XXX`" in the approval body | A follow-up PR Claude opens and then approves on Bernard's behalf is self-approval. Even when the original PR was bot-authored, the SECOND approval bypasses human review. | Fold the fix into the same remedy commit (small finding) or STOP and ask Bernard (large finding). Never write any "follow-up" framing in the approval body. |
 | Spinning up a new branch + PR mid-`/remedy-mr` because findings expanded | `/remedy-mr` is single-channel by contract — every fix lives on the original PR's branch | If the finding fits, fold it into the same commit and force-push. If it doesn't fit, STOP and ask. |
