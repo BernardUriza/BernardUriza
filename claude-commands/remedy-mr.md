@@ -20,6 +20,23 @@ The command **may also do nothing** — if after full review there's nothing to 
 
 This command is usually invoked AFTER `/code-review`. `/code-review` identifies findings; `/remedy-mr` materializes them into commits and shepherds the PR to a mergeable state.
 
+## Own-PR variant (learned 2026-07-30, #1785)
+
+When the target PR's author is Bernard's own account, three protocol points bend:
+
+1. **Phase 6.7 approve is IMPOSSIBLE** — GitHub rejects approving your own PR. The
+   closure route is: run codex as the independent peer in Phase 1 (mandatory here —
+   self-review needs outside eyes), then after the remedy mark the PR ready (gated —
+   Bernard's dale) so the VAIR pipeline reviews/approves it, or wait for the human
+   reviewer. Report ends at "remedied + routed to VAIR/reviewer", not "approved".
+2. **The Phase 0 draft gate**: when author == invoker, Bernard pointing the command
+   at his own draft IS the explicit re-confirmation — proceed, note it.
+3. **Phase 2 with a parallel session's work on local-testing**: if the ahead-commits
+   include another session's in-flight work (not squash-ghosts), do NOT reset
+   local-testing — ask Bernard, and prefer a temp branch from the PR's remote head
+   (`ALLOW_FEATURE_BRANCH=1 git checkout -B remedy-<n> origin/<head-ref>`), push with
+   the same keyed lease, then return to local-testing untouched.
+
 ## Same PR channel — never create follow-up PRs
 
 **Every remedy stays in the original PR's branch. `/remedy-mr` never opens a new PR.** This is a hard invariant, not a default. It applies to PRs authored by VAIR, by teammates, and by Bernard — every case.
