@@ -90,7 +90,7 @@ lockup on one side, emblem art bleeding off the other edge, gradient mask
 **Background treatment** (rancho-studio "render entre sombras", baked):
 
 ```python
-bg = master.resize(cover_fit(W, H), Image.LANCZOS)        # scale-125 + object-cover
+bg = master.resize(cover_fit(W, H), Image.Resampling.LANCZOS)  # scale-125 + object-cover
 bg = bg.filter(ImageFilter.GaussianBlur(3))               # blur-[3px]
 bg = ImageEnhance.Brightness(bg).enhance(0.45)            # opacity-40 over dark
 # vertical shadow ramp: dark(0.8) → mid(0.4) → dark(0.9), like
@@ -108,7 +108,36 @@ do it client-side instead:
 <div class="absolute inset-0 bg-gradient-to-b from-zinc-950/80 via-zinc-950/40 to-zinc-950/90"></div>
 ```
 
-### Phase 5: Verify & report
+### Phase 5: Install & wire (the .ico is the most important output)
+
+Generating the favicon is NOT installing it. **El `.ico` no está hasta que el
+navegador lo pinta** — a derived file nobody references is a no-op. This phase
+is mandatory; do it yourself, never offer it as an optional next step.
+
+1. Detect the HTML entry / head surface of the app:
+   - **Vite**: `web/index.html` or `index.html`
+   - **Next.js**: `app/layout.tsx` (`export const metadata` / `icons`) or
+     `app/head.tsx` / `pages/_document.tsx`
+   - **CRA / static**: `public/index.html`
+2. Inject into `<head>` (or the Next `metadata.icons` object), pointing at the
+   derived files at their served URL (`/<served-out>/...`):
+   - `<link rel="icon" href="/<out>/favicon.ico" sizes="any">`
+   - `<link rel="icon" type="image/png" href="/<out>/icon-192.png">`
+   - `<link rel="apple-touch-icon" href="/<out>/apple-touch-icon.png">`
+   - `<meta name="theme-color" content="<bg hex>">`
+   - `og:title` / `og:description` / `og:image` → `/<out>/og-image.png`
+   - `twitter:card=summary_large_image` / `twitter:image` → `/<out>/twitter-card.png`
+   Idempotent: if a tag already exists, replace its `href`/`content` — never
+   duplicate.
+3. **VERIFY in the real browser (Art. 2 — fake-green forbidden):**
+   - Dev server up? `curl -s -o /dev/null -w "%{http_code}" localhost:<port>`;
+     if not, start it (don't ask — Rule 13).
+   - `curl <port>/<out>/favicon.ico` → `200 image/x-icon`.
+   - Load the page in Chrome DevTools; `evaluate_script` that the rendered
+     `link[rel="icon"]` href `fetch`es `200` and the tab paints the icon.
+   A `.ico` generated but not served does NOT count as done.
+
+### Phase 6: Verify & report
 
 1. Verify every file exists; print real dims (struct-unpack PNG header) —
    never report a file unverified.
@@ -133,3 +162,9 @@ do it client-side instead:
 7. **No clichés clause is mandatory** in every prompt (no clip-art, no
    fists/megaphones/lightbulbs, unless the brief asks).
 8. **Verify before celebrating**: dims checked on disk, not assumed.
+9. **The favicon is the deliverable, not the file.** *El `.ico` no está hasta
+   que el navegador lo pinta* — generating the file is not installing it.
+   Phase 5 wires every icon/OG asset into the app's HTML entry and verifies the
+   browser paints the favicon. Skipping the wire-in, or offering it as an
+   optional next step instead of doing it, leaves the most important output
+   disconnected — that is the failure this rule exists to kill.
