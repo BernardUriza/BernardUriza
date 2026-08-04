@@ -15,7 +15,7 @@ else
   git clone "$REPO_URL" "$INSTALL_DIR"
 fi
 
-for sub in claude-commands claude-skills; do
+for sub in claude-commands claude-skills claude-scripts; do
   [ -d "$INSTALL_DIR/$sub" ] || { say "ERROR: falta $INSTALL_DIR/$sub — abortando"; exit 1; }
 done
 
@@ -30,11 +30,23 @@ link() {
     bk="$dst-backup-$(date +%Y%m%d%H%M%S)"
     mv "$dst" "$bk"; say "↳ backup del directorio real: $bk"
   fi
-  ln -s "$src" "$dst"; say "✓ $dst -> $src"
+  # En Git Bash sobre Windows sin Developer Mode, `ln -s` de un directorio falla.
+  # Un junction (mklink /J) no necesita privilegios y resuelve igual para todo
+  # consumidor de la ruta. Verificado 2026-08-04 creando $CLAUDE_DIR/scripts.
+  if ! ln -s "$src" "$dst" 2>/dev/null; then
+    win_src="$(cygpath -w "$src" 2>/dev/null || echo "$src")"
+    win_dst="$(cygpath -w "$dst" 2>/dev/null || echo "$dst")"
+    cmd //c mklink //J "$win_dst" "$win_src" >/dev/null || {
+      say "ERROR: no se pudo enlazar $dst -> $src"; exit 1; }
+    say "✓ $dst -> $src (junction)"
+    return
+  fi
+  say "✓ $dst -> $src"
 }
 
 link "$INSTALL_DIR/claude-commands" "$CLAUDE_DIR/commands"
 link "$INSTALL_DIR/claude-skills"   "$CLAUDE_DIR/skills"
+link "$INSTALL_DIR/claude-scripts"  "$CLAUDE_DIR/scripts"
 
 n_cmds=$(find -L "$CLAUDE_DIR/commands/" -maxdepth 1 -name '*.md' | wc -l | tr -d ' ')
 n_skills=$(find -L "$CLAUDE_DIR/skills/" -mindepth 1 -maxdepth 1 -type d | wc -l | tr -d ' ')
