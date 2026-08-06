@@ -339,10 +339,10 @@ AskUserQuestion:
 
 Claude MUST include in the generated file:
 ```markdown
-ARGUMENTS: $ARGUMENTS
+ARGUMENTS: \$ARGUMENTS
 ```
 
-And reference `$ARGUMENTS` in the instructions where the user input is used.
+And reference `\$ARGUMENTS` in the instructions where the user input is used.
 
 ---
 
@@ -494,7 +494,7 @@ Based on the command type, use these templates as a skeleton:
 ```markdown
 # /name - Short description
 
-ARGUMENTS: $ARGUMENTS
+ARGUMENTS: \$ARGUMENTS
 
 ## Instructions
 
@@ -532,7 +532,7 @@ ARGUMENTS: $ARGUMENTS
 ```markdown
 # /name - Short description
 
-ARGUMENTS: $ARGUMENTS
+ARGUMENTS: \$ARGUMENTS
 
 ## Instructions
 
@@ -662,7 +662,7 @@ Description of the workflow and when to use it.
 Every command MUST have these sections (in order):
 
 1. **Title** — `# /name - Description` (line 1)
-2. **Arguments** — `ARGUMENTS: $ARGUMENTS` (if applicable, line 3)
+2. **Arguments** — `ARGUMENTS: \$ARGUMENTS` (if applicable, line 3)
 3. **Instructions** — `## Instructions` (the heart of the command)
 4. **Rules** — `## Rules` or `## Strict Rules` (constraints)
 
@@ -742,8 +742,8 @@ Show diff or final content to the user before confirming.
 | Command | LOC | Sections | Rules | Has Args | Tone |
 |---------|-----|----------|-------|----------|------|
 | /work | 75 | 6 | 3 | No | Professional |
-| /ux-polish | 83 | 7 | 12 | Yes ($ARGUMENTS) | Silent |
-| /insult | 93 | 8 | 6 | Yes ($ARGUMENTS) | Aggressive |
+| /ux-polish | 83 | 7 | 12 | Yes (\$ARGUMENTS) | Silent |
+| /insult | 93 | 8 | 6 | Yes (\$ARGUMENTS) | Aggressive |
 | /css-to-tailwind | 187 | 12 | 7 | No | Silent |
 
 This table is updated DYNAMICALLY when executing STEP 0.
