@@ -1,7 +1,7 @@
 ---
 description: Force a decision into immediate executable work via AskUserQuestion
 argument-hint: [optional dilemma — empty = decide previous menu]
-model: opus
+model: haiku
 allowed-tools: AskUserQuestion, Read, Bash, Edit, Write, Glob, Grep
 disable-model-invocation: true
 ---
