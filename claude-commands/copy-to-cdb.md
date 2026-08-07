@@ -183,7 +183,7 @@ Anchor 2026-05-19: Verified by direct test. Draft posted via `python -c "urllib.
 If `mcp__claude-draft-box__create_draft` returned a transport error AND the bug is verified server-side, use Python's `urllib.request` instead of curl. Python writes UTF-8 bytes directly to the HTTP socket without shell intermediation:
 
 ```bash
-python -c "
+python3 -c "
 import urllib.request, json
 data = json.dumps({'content': '<body>', 'type': 'slack', 'source': 'claude-code'}).encode('utf-8')
 req = urllib.request.Request('http://localhost:3737/api/drafts', data=data,

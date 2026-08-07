@@ -17,7 +17,7 @@ Hook files on disk:
 !`find ~/.claude/hooks .claude/hooks -maxdepth 2 -type f -name '*.sh' 2>/dev/null | sed 's|.*/hooks/||' | sort | tr '\n' ' '`
 
 Hook wiring actually in effect (scope | event | matcher | script):
-!`python -c "import json,os;[[print('  ',lbl,e,'|',g.get('matcher','*'),'|',' '.join(h['command'].split('/')[-1] if h['command'].rstrip().endswith(('.sh','.py')) else '(inline)' for h in g['hooks'])) for e,gs in (json.load(open(f,encoding='utf-8-sig')).get('hooks') or {}).items() for g in gs] for lbl,f in [('[proj]','.claude/settings.local.json'),('[user]',os.path.expanduser('~/.claude/settings.json'))] if os.path.exists(f)]" 2>/dev/null`
+!`python3 -c "import json,os;[[print('  ',lbl,e,'|',g.get('matcher','*'),'|',' '.join(h['command'].split('/')[-1] if h['command'].rstrip().endswith(('.sh','.py')) else '(inline)' for h in g['hooks'])) for e,gs in (json.load(open(f,encoding='utf-8-sig')).get('hooks') or {}).items() for g in gs] for lbl,f in [('[proj]','.claude/settings.local.json'),('[user]',os.path.expanduser('~/.claude/settings.json'))] if os.path.exists(f)]" 2>/dev/null`
 
 Rule files that may already own the topic:
 !`ls ~/.claude/rules/*.md ./.claude/rules/*.md 2>/dev/null | xargs -n1 basename | sort -u | tr '\n' ' '`
