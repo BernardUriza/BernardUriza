@@ -25,9 +25,14 @@ Manda el texto por **stdin** (así sobreviven comillas, saltos de línea y acent
 printf '%s' "TEXTO AQUÍ" | bash ~/.claude/scripts/susurro-say.sh -
 ```
 
-El script imprime `mp3=<ruta> bytes=<n> voice=onyx` y luego `played_s=<duración>`.
-**Las dos líneas juntas son la evidencia de que sonó** — sin `played_s` no se
-reporta como reproducido, se reporta como "mp3 generado, reproducción falló".
+También acepta el texto como argumento directo (`susurro-say.sh "texto"`), pero
+stdin es lo preferible para textos largos o con comillas.
+
+El script imprime `mp3=<ruta> bytes=<n> voice=onyx` y luego
+`played_s=<segundos> duration_s=<segundos>`. **Las dos líneas juntas son la
+evidencia de que sonó** — sin `played_s` no se reporta como reproducido, se
+reporta como "mp3 generado, reproducción falló". Si no hay reproductor
+disponible, el script **falla con exit≠0** en vez de mentir.
 
 Sin argumentos, Claude escribe el texto él mismo: hechos verificados de la sesión,
 2–4 frases, nada de relleno. Si no hay nada verificado que decir, dilo en voz alta
@@ -73,24 +78,39 @@ printf '%s' "Prueba de sonido." | bash ~/.claude/scripts/susurro-say.sh -
   No reintentes en bucle: díselo a Bernard para que mintee un project key ilimitado
   en `/admin`.
 
-## Trampas ya verificadas (2026-08-04) — no las re-derives
+## Trampas ya verificadas — no las re-derives
 
-1. **`curl -d '{"input":"..."}'` inline → HTTP 400** `Body is not valid JSON`. El
-   gateway recibe las comillas simples literales desde este entorno Windows. Por eso
-   el script **siempre** postea un archivo (`-d @body.json`). El propio error del
-   gateway lo dice.
+Universales (aplican en cualquier máquina):
+
+1. **`curl -d '{"input":"..."}'` inline → HTTP 400** `Body is not valid JSON`. Por
+   eso el script **siempre** postea un archivo (`-d @body.json`). El propio error
+   del gateway lo dice.
 2. **Acentos.** El body se serializa con `json.dumps(ensure_ascii=True)` → los
-   acentos viajan como `\uXXXX` y el payload queda ASCII puro, inmune al codepage de
-   Windows PowerShell 5.1.
+   acentos viajan como `\uXXXX` y el payload queda ASCII puro, inmune a cualquier
+   codepage.
 3. **La variable del archivo de secretos es `SUSURRO_TOKEN=`**, aunque el
-   `/v1/discovery` documenta `SUSURRO_KEY=`. Los scripts aceptan las dos.
-4. **`MediaPlayer` abre asíncrono**: en el primer tick `NaturalDuration` todavía no
-   existe (aquí tardó 800 ms). Hay que poll-earla antes de confiar en la duración, o
-   el audio se corta. `susurro-play.ps1` ya lo hace.
-5. **`python3` no existe en esta máquina; el binario es `python`** (3.14). `jq`
-   tampoco está instalado.
-6. **En `A=1 printf ... | python`, la asignación se queda en `printf`** y el intérprete
-   nunca la ve. Los scripts usan `export`. Este bug ya costó un run.
+   `/v1/discovery` documenta `SUSURRO_KEY=`. Los scripts aceptan las dos, y
+   además caen a `~/.secrets/susurro-gateway-key.txt` si no existe
+   `susurro-token.txt`.
+4. **En `A=1 printf ... | python3`, la asignación se queda en `printf`** y el
+   intérprete nunca la ve. Los scripts pasan las variables por el entorno del
+   propio `python3`. Este bug ya costó un run.
+5. **La respuesta puede ser HTTP 200 y NO ser audio** (un JSON de error, un
+   cuerpo vacío). El script verifica bytes y magic bytes antes de reproducir —
+   nunca asume que 200 = sonido.
+
+Específicas de la Mac (2026-08-10, este entorno):
+
+6. **El binario es `python3`, NO `python`.** Al revés que en la máquina Windows.
+   `jq`, `ffprobe` y `afplay` sí están.
+7. **El reproductor es `afplay`** (nativo, bloqueante — no hay que poll-ear
+   duración como con el `MediaPlayer` de PowerShell). El script cae a `ffplay` y
+   luego a `mpg123` si no hubiera `afplay`.
+
+Histórico de la máquina Windows (no aplica aquí, se conserva por si se vuelve a
+usar ese equipo): el `MediaPlayer` de PresentationCore abre asíncrono y en el
+primer tick `NaturalDuration` todavía no existe (~800 ms), por eso
+`susurro-play.ps1` la poll-ea antes de confiar en ella.
 
 ## Contrato del gateway (verificado contra `/v1/discovery`)
 
@@ -105,10 +125,26 @@ printf '%s' "Prueba de sonido." | bash ~/.claude/scripts/susurro-say.sh -
 
 ## Archivos
 
-- `~/.claude/scripts/susurro-say.sh` — TTS + reproducción
-- `~/.claude/scripts/susurro-play.ps1` — reproductor bloqueante (PresentationCore)
-- `~/.claude/scripts/susurro-claim.sh` — canje del claim code
-- `~/.secrets/susurro-token.txt` — el token (jamás se imprime)
+Los scripts viven **versionados en este mismo repo** (`claude-commands/scripts/`)
+y `~/.claude/scripts` es un symlink a esa carpeta — una sola fuente de verdad,
+igual que `~/.claude/commands`. Si en una máquina nueva falta el symlink:
+
+```bash
+ln -s ~/Documents/BernardUriza/claude-commands/scripts ~/.claude/scripts
+```
+
+- `scripts/susurro-say.sh` — TTS + reproducción (bash; `afplay`/`ffplay`/`mpg123`)
+- `scripts/susurro-claim.sh` — canje del claim code
+- `~/.secrets/susurro-token.txt` — el token (jamás se imprime). Fallback:
+  `~/.secrets/susurro-gateway-key.txt`
+
+Overrides por entorno: `SUSURRO_TOKEN`, `SUSURRO_GATEWAY`, `SUSURRO_VOICE`,
+`SUSURRO_FORMAT`.
+
+**Verificado end-to-end en esta Mac el 2026-08-10:** texto por stdin y por
+argumento (`played_s=5` / `played_s=3` con audio real), y los tres caminos de
+error — sin args, texto vacío, y token inválido (`HTTP 401`, sin filtrar el
+token).
 
 > Renombrado desde `/hablame` el 2026-08-04. Si encuentras una referencia a `/hablame`
 > en cualquier lado, es de la versión previa a ese rename.
