@@ -35,7 +35,7 @@ it contains a credential ([secrets.md](secrets.md)), or if it is a fact only the
    git -C engineering-notes push origin main
    ```
 4. **Report the GitHub URL** so it can be shared:
-   `https://github.com/Visalaw/engineering-notes/blob/main/<path>`
+   `https://github.com/<ORG>/engineering-notes/blob/main/<path>`
 
 ## Rules
 
@@ -43,7 +43,7 @@ it contains a credential ([secrets.md](secrets.md)), or if it is a fact only the
 - Every new folder gets a `README.md` explaining the context.
 - Convert relative dates to absolute: "next Friday" → `2026-04-10`.
 - Tag owners — every action item needs a name.
-- Link the Plane issue where applicable, with its full URL, not a bare `VISAL-XXX`.
+- Link the Plane issue where applicable, with its full URL, not a bare `<PROJ>-XXX`.
 - **Check the audience can open it.** `engineering-notes` is an engineering surface. If the
   reader is Sales, CS, Legal or an exec, they have no GitHub access and the link is a
   locked door — republish through `/mermaid-export`, a Slack canvas, or inline in the

@@ -127,7 +127,7 @@ Verdicts (based on TOTAL mortals, not per voice):
 - **Nearly Holy** (0 mortals): "The voices fall silent. Only minor sins remain."
 - **Immaculate** (0 findings): "An ecumenical miracle. All four voices say: Amen."
 
-> **Threshold calibration**: numbers tuned for typical Visalaw component size (~150 LOC, single React component or hook). For monorepo-wide audits, scale linearly: multiply by `(audited_files / 5)` and round. A 50-file sweep with 12 mortals = ~Purgatory, not Sodom.
+> **Threshold calibration**: numbers tuned for typical component size in the employer codebase (~150 LOC, single React component or hook). For monorepo-wide audits, scale linearly: multiply by `(audited_files / 5)` and round. A 50-file sweep with 12 mortals = ~Purgatory, not Sodom.
 
 ---
 
@@ -201,8 +201,8 @@ Changes:
 
 **Build verify between rounds**: detect the stack from the file path or `package.json` first.
 - Frontend (`core/frontend-core-2.0/`): `cd core/frontend-core-2.0 && npx tsc --noEmit`
-- Backend (`backend/visalaw-gen-backend/`): `cd backend/visalaw-gen-backend && npx tsc --noEmit`
-- Python (`standalone/visalaw-gen-standalone-services/`): `cd standalone/... && ruff check`
+- Backend (`backend/<gen-backend>/`): `cd backend/<gen-backend> && npx tsc --noEmit`
+- Python (`standalone/<org>-gen-standalone-services/`): `cd standalone/... && ruff check`
 - Mixed scope: run each detected stack's check; report per-stack.
 
 **Never assume `npx tsc` works everywhere** — Python files have no TypeScript, monorepo roots have no `tsconfig.json`.

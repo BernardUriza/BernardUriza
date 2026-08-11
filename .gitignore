@@ -1,3 +1,22 @@
 .DS_Store
 Icon?
 *.swp
+
+# --- Commands atados a infraestructura del empleador (2026-08-11) ---
+# ESTE REPO ES PÚBLICO. Estos commands sólo funcionan contra infra privada de un
+# empleador y exponían, bajo el nombre de Bernard: correo de trabajo, usuario de IAM,
+# nombre de bucket S3, clusters de ECS, slug del workspace de Plane, hosts de staging
+# y prod, y seis repos privados. Viven en disco (los symlinks de ~/.claude siguen
+# funcionando) pero NUNCA se publican.
+claude-commands/vair.md
+claude-commands/merge-policeman.md
+claude-commands/collect-learnings.md
+claude-commands/aws-checkpoint.md
+claude-commands/changelog.md
+claude-commands/triage.md
+claude-commands/modify-command.md
+claude-commands/remedy-mr.md
+claude-commands/view-verification.md
+claude-commands/calendarize-this.md
+claude-commands/ultra-lord.md
+claude-commands/validate-claims.md

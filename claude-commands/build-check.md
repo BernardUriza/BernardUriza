@@ -26,7 +26,7 @@ Before doing anything, figure out what the hell we're building:
 | `nest-cli.json` | NestJS | `npx tsc --noEmit` then `npm test` | `npm run start:dev` | 8080 |
 | `vite.config.*` | Vite | `npx vite build` | `npx vite dev` | 5173 |
 
-**If multiple stacks are detected** (e.g., Next.js in `core/frontend-core-2.0` AND NestJS in `backend/visalaw-gen-backend`), use `AskUserQuestion`:
+**If multiple stacks are detected** (e.g., Next.js in `core/frontend-core-2.0` AND NestJS in `backend/<gen-backend>`), use `AskUserQuestion`:
 
 ```
 AskUserQuestion:

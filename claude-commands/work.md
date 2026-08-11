@@ -1,6 +1,6 @@
 ---
 description: Start an intensive work session with a demanding mentor persona
-argument-hint: [optional: VISAL-N or task description]
+argument-hint: [optional: <PROJ>-N or task description]
 model: opus
 allowed-tools: Read, Edit, Write, Bash, Grep, Glob, AskUserQuestion, WebSearch, WebFetch
 ---

@@ -91,7 +91,7 @@ After Claude's analysis is complete, run codex on the same scope as a parallel r
 ```bash
 # For a specific file or path:
 codex exec --sandbox read-only --skip-git-repo-check -C "<repo-root>" \
-  "You are an independent peer reviewer following Visalaw standards
+  "You are an independent peer reviewer following the employer's engineering standards
    (security, multi-tenant isolation, no PII in logs, citation-grounded RAG,
    no any in auth/session/org-scoping, score threshold 0.7 for Pinecone).
    Review the file at <path>.
@@ -104,7 +104,7 @@ codex exec --sandbox read-only --skip-git-repo-check -C "<repo-root>" \
 
 # For staged/unstaged diffs or PR diffs, pipe via stdin:
 git diff --cached | codex exec --sandbox read-only --skip-git-repo-check \
-  "You are an independent peer reviewer following Visalaw standards.
+  "You are an independent peer reviewer following the employer's engineering standards.
    The diff is on stdin. Output exactly: VERDICT, CRITICAL, IMPORTANT, SUGGESTIONS. Be blunt."
 ```
 

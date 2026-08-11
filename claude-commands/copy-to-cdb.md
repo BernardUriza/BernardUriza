@@ -139,8 +139,8 @@ Prefer the markdown link form **for every URL in the draft body**:
 | Before (bare URL) | After (markdown link) |
 |---|---|
 | `See https://github.com/.../1474 for the PR` | `See [PR 1474](https://github.com/.../1474) for the PR` |
-| `Diagram: https://visalaw.github.io/.github/diagrams/foo.html` | `Diagram: [Foo flow](https://visalaw.github.io/.github/diagrams/foo.html)` |
-| `Plane: https://app.plane.so/visalaw-ai/browse/VISAL-927/` | `Plane: [VISAL-927](https://app.plane.so/visalaw-ai/browse/VISAL-927/)` |
+| `Diagram: https://<org>.github.io/.github/diagrams/foo.html` | `Diagram: [Foo flow](https://<org>.github.io/.github/diagrams/foo.html)` |
+| `Plane: https://<tracker-host>/<org>-ai/browse/<PROJ>-927/` | `Plane: [<PROJ>-927](https://<tracker-host>/<org>-ai/browse/<PROJ>-927/)` |
 
 slackify converts `[label](url)` to Slack's `<url|label>` form, which Slack renders as a single clickable link with the human-readable label. No URL duplication, no `<URL|URL>` mess in the copy.
 

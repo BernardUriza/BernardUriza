@@ -24,7 +24,7 @@ appears in the file list but not in the wiring block enforces nothing today.
 
 ## Which hook already owns which surface
 
-Semantic map of the Visalaw layer. Cross-check every row against the injected inventory
+Semantic map of the employer layer. Cross-check every row against the injected inventory
 before relying on it — a hook may have been renamed, retired into `hooks/disabled/`, or
 unwired since this was written.
 
