@@ -17,6 +17,8 @@
 > 🤖 **Working with AI daily?** Check out my copy/paste prompt collection for developers:
 > **[dev-chatgpt-prompts](https://github.com/BernardUriza/dev-chatgpt-prompts)** — 10 stack-agnostic prompts ready to paste. No fill-in-the-blanks, no setup.
 
+> 🗂️ **Living in Claude Code?** I use **[Claude Code History Viewer](https://github.com/jhlee0409/claude-code-history-viewer)** to browse and search every local session transcript — a fully offline desktop app (Windows/macOS/Linux) that reads `~/.claude/projects` directly, with global search and per-session token/cost analytics.
+
 ---
 
 ## 🎯 About Me
