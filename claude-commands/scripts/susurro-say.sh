@@ -40,13 +40,30 @@ resolve_token() {
   die "no token — set SUSURRO_TOKEN or add SUSURRO_TOKEN=/SUSURRO_KEY= to ~/.secrets/susurro-token.txt"
 }
 
+# Ventana de habla: mientras exista este archivo, la bocina está sonando. El
+# motor de escucha (~/Documents/susurro/escucha/motor.py) lo lee para MARCAR
+# —no borrar— los utterances que son eco de esta voz y no de Bernard.
+HABLANDO="${SUSURRO_LOCK:-${TMPDIR:-/tmp}/susurro-hablando.lock}"
+
 play() {
-  local f="$1"
-  if command -v afplay >/dev/null 2>&1; then afplay "$f"
-  elif command -v ffplay >/dev/null 2>&1; then ffplay -nodisp -autoexit -loglevel error "$f"
-  elif command -v mpg123 >/dev/null 2>&1; then mpg123 -q "$f"
-  else return 127
-  fi
+  local f="$1" rc=127
+  # Se prueba CADA reproductor disponible y se pasa al siguiente si FALLA.
+  # (El bug: un elif encadenado elegía afplay por existir y, al fallar con
+  #  AudioQueueStart -66681 por contención con el micrófono, reportaba
+  #  "no player found" sin haber intentado ffplay ni mpg123, que SÍ estaban.)
+  for intento in 1 2; do
+    if command -v afplay >/dev/null 2>&1; then
+      afplay "$f" && return 0; rc=$?
+    fi
+    if command -v ffplay >/dev/null 2>&1; then
+      ffplay -nodisp -autoexit -loglevel error "$f" && return 0; rc=$?
+    fi
+    if command -v mpg123 >/dev/null 2>&1; then
+      mpg123 -q "$f" && return 0; rc=$?
+    fi
+    [ "$intento" = 1 ] && sleep 1   # el dispositivo suele liberarse solo
+  done
+  return "$rc"
 }
 
 TEXT=$(read_text "$@")
@@ -91,9 +108,14 @@ DURATION=$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$MP3" 2>/
 printf 'mp3=%s bytes=%s voice=%s\n' "$MP3" "$BYTES" "$VOICE"
 
 START=$(date +%s)
+: > "$HABLANDO"
+printf '%s\n' "$TEXT" >> "$HABLANDO"
+trap 'rm -f "$WORK/body.json" "$HABLANDO"' EXIT
 if play "$MP3"; then
   END=$(date +%s)
+  rm -f "$HABLANDO"
   printf 'played_s=%s duration_s=%s\n' "$((END - START))" "$DURATION"
 else
-  die "mp3 generated at $MP3 but no player found (afplay/ffplay/mpg123) — playback FAILED"
+  rm -f "$HABLANDO"
+  die "mp3 generated at $MP3 but NINGUN reproductor logro sonar (afplay/ffplay/mpg123, 2 intentos) — playback FAILED"
 fi
